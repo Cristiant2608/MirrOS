@@ -150,7 +150,8 @@ def run_mirros(port: Optional[int] = None, no_audio: bool = True,
                display_mode: str = "dual", force_software: bool = False,
                video_quality: Optional[str] = None,
                ui_mode: str = "phone",
-               lang: Optional[str] = None) -> int:
+               lang: Optional[str] = None,
+               include_wifi: bool = False) -> int:
     if port is not None and not 1 <= port <= 65535:
         print("[!] Port must be between 1 and 65535.")
         return 1
@@ -167,8 +168,9 @@ def run_mirros(port: Optional[int] = None, no_audio: bool = True,
         except Exception:
             print("PyAV: unavailable")
         try:
-            devices = list_connected_devices()
-            print(f"USB Devices: {len(devices)}")
+            devices = list_connected_devices(include_wifi=True) if include_wifi else list_connected_devices()
+            label = "Devices (USB + Wi-Fi)" if include_wifi else "USB Devices"
+            print(f"{label}: {len(devices)}")
         except Exception as error:
             print(f"USB Detection: unavailable ({type(error).__name__})")
             return 1
@@ -183,13 +185,16 @@ def run_mirros(port: Optional[int] = None, no_audio: bool = True,
     target_port = None
     log_path = Path(tempfile.mkdtemp(prefix="mirros-")) / "backend.log"
     try:
-        print("[*] Looking for iPhone over USB...", flush=True)
+        if include_wifi:
+            print("[*] Looking for iPhone over USB or local Wi-Fi...", flush=True)
+        else:
+            print("[*] Looking for iPhone over USB...", flush=True)
         device_instructions()
         print("[*] Waiting for device (Ctrl+C to cancel)...", flush=True)
         last_error = None
         while True:
             try:
-                devices = list_connected_devices()
+                devices = list_connected_devices(include_wifi=True) if include_wifi else list_connected_devices()
                 last_error = None
             except Exception as error:
                 devices = []
@@ -218,7 +223,7 @@ def run_mirros(port: Optional[int] = None, no_audio: bool = True,
         if video_quality:
             query_params.append(f"quality={video_quality}")
         resolved_lang = lang or os.environ.get("MIRROS_LANG")
-        if resolved_lang in ("en", "es"):
+        if resolved_lang in ("en", "es", "pt", "fr", "de"):
             query_params.append(f"lang={resolved_lang}")
         query_str = f"?{'&'.join(query_params)}" if query_params else ""
         url = f"http://127.0.0.1:{target_port}/{query_str}"

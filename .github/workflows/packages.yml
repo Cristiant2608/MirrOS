@@ -14,10 +14,10 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - run: node scripts/version.mjs
@@ -40,13 +40,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - uses: astral-sh/setup-uv@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: pyproject.toml
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: pnpm
@@ -104,7 +107,7 @@ jobs:
         run: mkdir -p artifacts && cp dist/linux/*.AppImage dist/linux/*.deb artifacts/
       - name: Upload Windows package
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Mirros-Windows
           path: artifacts/Mirros-*-Windows.exe
@@ -112,7 +115,7 @@ jobs:
           compression-level: 0
       - name: Upload Linux package
         if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Mirros-Linux
           path: |
@@ -126,25 +129,45 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: Mirros-*
           path: release
           merge-multiple: true
-      - name: Publish a version only after both packages passed
+      - name: Prepare release assets and checksums
+        id: prepare
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="$(node -p 'require("./package.json").version')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           if gh release view "v$version" >/dev/null 2>&1; then
             echo "Version already published; bump package.json for the next release."
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "already_published=false" >> "$GITHUB_OUTPUT"
           test -s "release/Mirros-$version-Windows.exe"
           test -s "release/Mirros-$version-Linux-x64.AppImage"
           test -s "release/Mirros-$version-Linux-x64.deb"
           git archive --format=zip --prefix="mirros-$version/" -o "release/Mirros-$version-Source.zip" HEAD
           (cd release && sha256sum "Mirros-$version-Windows.exe" "Mirros-$version-Linux-x64.AppImage" "Mirros-$version-Linux-x64.deb" "Mirros-$version-Source.zip" > SHA256SUMS.txt)
+      - name: Attest build provenance
+        if: steps.prepare.outputs.already_published != 'true'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release/Mirros-*-Windows.exe
+            release/Mirros-*-Linux-x64.AppImage
+            release/Mirros-*-Linux-x64.deb
+      - name: Publish a version only after both packages passed
+        if: steps.prepare.outputs.already_published != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ steps.prepare.outputs.version }}"
           gh release create "v$version" --verify-tag release/* --target "$GITHUB_SHA" --title "Mirros $version" --notes-file RELEASE_NOTES.md

@@ -8,6 +8,7 @@ class MirrosPCMPlayer extends AudioWorkletProcessor {
     this.read = 0; this.count = 0; this.fraction = 0;
     this.target = 5760; // 120 ms; grow after underruns, up to 240 ms.
     this.playing = false; this.fade = 0;
+    this.highBlocks = 0; this.slewing = false;
     this.port.onmessage = ({data}) => {
       if (!(data instanceof ArrayBuffer) || data.byteLength % 4) return;
       const pcm = new DataView(data);
@@ -17,6 +18,7 @@ class MirrosPCMPlayer extends AudioWorkletProcessor {
         const keep = Math.min(this.count, Math.max(0, this.target - frames));
         this.read = (this.read + this.count - keep) % this.capacity;
         this.count = keep; this.fraction = 0; this.fade = 0;
+        this.highBlocks = 0; this.slewing = false;
       }
       for (let i = Math.max(0, frames - this.capacity); i < frames; i++) {
         const write = (this.read + this.count) % this.capacity;
@@ -33,13 +35,21 @@ class MirrosPCMPlayer extends AudioWorkletProcessor {
     if (!this.playing) {
       if (this.count < this.target) return true;
       this.playing = true; this.fade = 0;
+      this.highBlocks = 0; this.slewing = false;
       this.port.postMessage('playing');
     }
-    const step = 48000 / sampleRate;
+    if (this.count > this.target + 2400) {
+      if (++this.highBlocks >= 75) this.slewing = true;
+    } else {
+      this.highBlocks = 0;
+      if (this.count <= this.target) this.slewing = false;
+    }
+    const step = (48000 / sampleRate) * (this.slewing ? 1.005 : 1);
     for (let i = 0; i < left.length; i++) {
       // Fractional resampling also supports devices running at 44.1 kHz.
       if (this.count < Math.max(2, Math.ceil(this.fraction + step))) {
         this.playing = false; this.target = Math.min(11520, this.target + 1920);
+        this.highBlocks = 0; this.slewing = false;
         this.port.postMessage('buffering'); break;
       }
       const next = (this.read + 1) % this.capacity;

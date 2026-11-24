@@ -1,0 +1,23 @@
+# Maintainer: Cristiant2608 <https://github.com/Cristiant2608/MirrOS>
+pkgname=mirros-bin
+pkgver=1.4.0
+pkgrel=1
+pkgdesc="Open-source iPhone screen mirroring, audio streaming, screen recording, and USB HID control for Windows and Linux (scrcpy for iOS)"
+arch=('x86_64')
+url="https://github.com/Cristiant2608/MirrOS"
+license=('MIT')
+depends=('usbmuxd' 'gtk3' 'nss' 'alsa-lib')
+optdepends=('wl-clipboard: Wayland clipboard sync')
+provides=('mirros')
+conflicts=('mirros')
+options=('!strip')
+source=("https://github.com/Cristiant2608/MirrOS/releases/download/v${pkgver}/Mirros-${pkgver}-Linux-x64.deb")
+sha256sums=('79c0d5a8ce8d49680ed70a10f0136ecf14357d7d3c62c0086b66507ebbe018ef')
+
+package() {
+  bsdtar -xf "${srcdir}/data.tar."* -C "${pkgdir}/"
+  if [ -f "${pkgdir}/opt/Mirros/mirros" ] && [ ! -e "${pkgdir}/usr/bin/mirros" ]; then
+    install -dm755 "${pkgdir}/usr/bin"
+    ln -s /opt/Mirros/mirros "${pkgdir}/usr/bin/mirros"
+  fi
+}

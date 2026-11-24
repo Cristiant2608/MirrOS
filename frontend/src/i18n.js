@@ -1,14 +1,27 @@
 import {useState, useEffect} from 'react';
 import enLocale from './locales/en.json';
 import esLocale from './locales/es.json';
+import ptLocale from './locales/pt.json';
+import frLocale from './locales/fr.json';
+import deLocale from './locales/de.json';
+
+export const SUPPORTED_LANGS = [
+  ['en', 'EN', 'English'],
+  ['es', 'ES', 'Español'],
+  ['pt', 'PT', 'Português'],
+  ['fr', 'FR', 'Français'],
+  ['de', 'DE', 'Deutsch'],
+];
+
+const SUPPORTED_LANG_CODES = new Set(SUPPORTED_LANGS.map(([code]) => code));
 
 export function getInitialLang() {
   if (typeof window !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
     const urlLang = params.get('lang');
-    if (urlLang === 'en' || urlLang === 'es') return urlLang;
+    if (SUPPORTED_LANG_CODES.has(urlLang)) return urlLang;
     const saved = localStorage.getItem('lang');
-    if (saved === 'en' || saved === 'es') return saved;
+    if (SUPPORTED_LANG_CODES.has(saved)) return saved;
   }
   return 'en';
 }
@@ -64,6 +77,13 @@ const BACKEND_MESSAGE_PAIRS = [
   ['No se pudo capturar la pantalla del iPhone.', 'Could not capture the iPhone camera viewfinder.'],
   ['No se pudo ejecutar el atajo de atenuación en el iPhone.', 'Could not run the iPhone dim shortcut.'],
   ['No se pudo ejecutar el atajo de restauración en el iPhone.', 'Could not run the iPhone restore shortcut.'],
+  ['Sonando en este PC', 'Playing on this PC'],
+  ['Estabilizando audio…', 'Stabilizing audio…'],
+  ['Esperando sonido del iPhone', 'Waiting for iPhone audio'],
+  ['Reconectando audio…', 'Reconnecting audio…'],
+  ['No se pudo iniciar el audio del iPhone.', 'Could not start iPhone audio.'],
+  ['La transmisión de audio se interrumpió.', 'Audio stream was interrupted.'],
+  ['No se pudo reproducir el audio.', 'Could not play audio.'],
 ];
 
 const BACKEND_ES_TO_EN = Object.fromEntries(BACKEND_MESSAGE_PAIRS);
@@ -170,6 +190,9 @@ function buildLocale(raw) {
 export const STRINGS = {
   en: buildLocale(enLocale),
   es: buildLocale(esLocale),
+  pt: buildLocale(ptLocale),
+  fr: buildLocale(frLocale),
+  de: buildLocale(deLocale),
 };
 
 export function useLanguage() {
@@ -181,8 +204,12 @@ export function useLanguage() {
       document.title = STRINGS[lang]?.appTitle || STRINGS.en.appTitle;
     } catch {}
   }, [lang]);
-  const setLang = next => setLangState(next === 'es' ? 'es' : 'en');
-  const toggleLang = () => setLangState(prev => (prev === 'en' ? 'es' : 'en'));
+  const setLang = next => setLangState(SUPPORTED_LANG_CODES.has(next) ? next : 'en');
+  const toggleLang = () => setLangState(prev => {
+    const idx = SUPPORTED_LANGS.findIndex(([code]) => code === prev);
+    const nextIdx = idx >= 0 ? (idx + 1) % SUPPORTED_LANGS.length : 0;
+    return SUPPORTED_LANGS[nextIdx][0];
+  });
   const t = STRINGS[lang] || STRINGS.en;
   return {lang, setLang, toggleLang, t};
 }

@@ -103,3 +103,24 @@ html:has(body.floating),body.floating,body.floating #root{background:transparent
 .device-picker button>span{min-width:0;text-align:left}
 .device-picker button>span strong,.device-picker button>span small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .device-picker button>span small{font-size:10px;color:var(--muted);margin-top:2px}
+
+/* Drag & Drop on iPhone Preview */
+.phone-shell.drop-active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent),0 10px 28px var(--shadow)}
+.phone-drop-overlay{position:absolute;inset:6px;border-radius:var(--phone-radius);background:rgba(15,23,42,0.74);border:2px dashed var(--accent);display:flex;align-items:center;justify-content:center;padding:18px;text-align:center;color:#fff;font-size:11px;font-weight:600;z-index:9;pointer-events:none;backdrop-filter:blur(3px)}
+
+/* OLED Dim Editable Shortcut Names */
+.dim-shortcuts-form{display:flex;flex-direction:column;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.dim-shortcuts-form label{display:flex;flex-direction:column;gap:4px;font-size:10px;color:var(--muted)}
+.dim-shortcuts-form input{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--control);color:var(--text);font-size:11px}
+.dim-shortcuts-form button{align-self:flex-start;padding:6px 10px}
+
+/* Multi-Language Grid & Badges */
+.lang-grid{margin-top:10px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.lang-grid button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:7px 4px;border:1px solid var(--line);border-radius:8px;background:var(--control);color:var(--muted);font-size:10px}
+.lang-grid button strong{font-size:11px;font-weight:650;color:var(--text)}
+.lang-grid button small{font-size:9px;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lang-grid button:hover{background:var(--accent-soft);border-color:var(--accent)}
+.lang-grid button.selected{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);box-shadow:0 1px 3px var(--shadow)}
+.lang-grid button.selected strong,.lang-grid button.selected small{color:var(--accent)}
+.floating-lang-badge{position:absolute;top:8px;right:8px;z-index:6;padding:3px 7px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--text);font-size:10px;font-weight:650;letter-spacing:.4px;box-shadow:0 2px 6px var(--shadow);-webkit-app-region:no-drag}
+.floating-lang-badge:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}

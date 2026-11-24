@@ -7,17 +7,22 @@ import {IconButton, Logo, RecordButton, RecordingBadge} from './Controls.jsx';
 import {FrameRate} from './FrameRate.jsx';
 import {InspectorContent} from './InspectorContent.jsx';
 import {resolveBatteryIcon} from '../battery.mjs';
-import {translateBackendText} from '../i18n.js';
+import {SUPPORTED_LANGS, translateBackendText} from '../i18n.js';
+
+const LANG_OPTIONS = Array.isArray(SUPPORTED_LANGS) && SUPPORTED_LANGS.length
+  ? SUPPORTED_LANGS
+  : [['en', 'EN', 'English'], ['es', 'ES', 'Español']];
 
 export function StudioShell({
   state, connected, live, cameraLive, isDisplaying, statusLabel,
   battery, batteryIcons, sections, tab, setTab, currentSection,
-  switchMode, recording, recordingDuration, toggleRecording,
+  switchMode, recording, recordingDuration, recordingBytes = 0, toggleRecording,
   lang, toggleLang, bridge, native, videoMode, videoQuality,
   frames, dimensions, keyboard, audioEnabled, preview,
   inspectorProps, modals, notice, t,
 }) {
   const SectionIcon = currentSection[0];
+  const currentLang = LANG_OPTIONS.find(([code]) => code === lang) || [lang || 'en', String(lang || 'en').toUpperCase(), lang || 'en'];
 
   function toggleFullscreen() {
     if (bridge) native('fullscreen');
@@ -72,7 +77,7 @@ export function StudioShell({
             <ChevronRight size={14}/>
             <span>{currentSection[2]}</span>
           </div>
-          {recording && <RecordingBadge duration={recordingDuration} onStop={toggleRecording} t={t}/>}
+          {recording && <RecordingBadge duration={recordingDuration} bytes={recordingBytes} onStop={toggleRecording} t={t}/>}
           {connected && battery && battery.capacity !== null && (
             <div
               className={`battery-pill ${battery.charging ? 'is-charging' : ''} ${battery.capacity <= 20 ? 'is-low' : ''}`}
@@ -86,14 +91,15 @@ export function StudioShell({
           <div className="window-actions">
             <button
               type="button"
-              className="small-button"
+              className="small-button lang-badge"
               style={{padding: '4px 9px', fontSize: 11, fontWeight: 600, marginRight: 4}}
-              title={t.controls.switchLang}
+              title={`${t.controls.switchLang} (${currentLang[2]})`}
+              aria-label={`${t.controls.switchLang}: ${currentLang[2]}`}
               onClick={toggleLang}
             >
-              {lang === 'en' ? '🇺🇸 EN' : '🇪🇸 ES'}
+              {currentLang[1]}
             </button>
-            <RecordButton recording={recording} disabled={!isDisplaying && !recording} onClick={toggleRecording} t={t}/>
+            <RecordButton recording={recording} recordingDuration={recordingDuration} recordingBytes={recordingBytes} disabled={!isDisplaying && !recording} onClick={toggleRecording} t={t}/>
             <IconButton icon={Maximize2} label={t.controls.fullscreen} onClick={toggleFullscreen}/>
             <IconButton icon={Minus} label={t.controls.minimize} onClick={() => native('minimize')}/>
             <IconButton icon={Maximize2} label={t.controls.maximize} onClick={() => native('maximize')}/>

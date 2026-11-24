@@ -23,6 +23,18 @@ def main() -> None:
         help="Target iPhone UDID when multiple devices are connected.",
     )
     device_group.add_argument(
+        "--wifi",
+        action="store_true",
+        default=False,
+        help="Allow discovering USB-paired iPhones over trusted local Wi-Fi (USB is preferred when connected).",
+    )
+    device_group.add_argument(
+        "--enable-wifi",
+        action="store_true",
+        default=False,
+        help="Enable local Wi-Fi pairing on a USB-connected iPhone and exit.",
+    )
+    device_group.add_argument(
         "--no-userspace",
         action="store_true",
         help="Disable userspace tunnel (requires root privileges / kernel tunnel).",
@@ -111,9 +123,9 @@ def main() -> None:
     )
     server_group.add_argument(
         "--lang",
-        choices=["en", "es"],
+        choices=["en", "es", "pt", "fr", "de"],
         default=None,
-        help="UI language override: 'en' (English, default) or 'es' (Spanish).",
+        help="UI language override: 'en' (English, default), 'es' (Spanish), 'pt' (Portuguese), 'fr' (French), or 'de' (German).",
     )
 
     # Diagnostics & info
@@ -132,6 +144,11 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    if args.enable_wifi:
+        from mirros.device import enable_wifi_cli
+        sys.exit(enable_wifi_cli(udid=args.udid))
+        return
 
     if args.list_apps:
         from mirros.apps import list_apps_cli
@@ -163,6 +180,7 @@ def main() -> None:
         video_quality=args.video_quality,
         ui_mode="studio" if args.studio and not args.floating else "phone",
         lang=args.lang,
+        include_wifi=args.wifi,
     )
     sys.exit(exit_code)
 

@@ -1,15 +1,23 @@
-import React, {memo} from 'react';
+import React, {memo, useEffect, useState} from 'react';
 import {Bell, Camera, Check, ChevronRight, CircleHelp, Clipboard, Download, ExternalLink, Home, Layers, LockKeyhole, LogOut, Moon, Mouse, RefreshCw, RotateCw, Send, SlidersHorizontal, Smartphone, Sun, Volume1, Volume2, VolumeX} from 'lucide-react';
 import {Toggle} from './Controls.jsx';
-import {STRINGS, translateBackendText} from '../i18n.js';
+import {STRINGS, SUPPORTED_LANGS, translateBackendText} from '../i18n.js';
+
+const LANG_OPTIONS = Array.isArray(SUPPORTED_LANGS) && SUPPORTED_LANGS.length
+  ? SUPPORTED_LANGS
+  : [['en', 'EN', 'English'], ['es', 'ES', 'Español']];
 
 export const InspectorContent = memo(function InspectorContent({
   tab, state, connected, live, bridge, native, switchMode, disconnectSession,
   videoMode, videoQuality, setVideoQuality, forceSoftware, setForceSoftware,
+  recording = false, recordingFormat = 'auto', setRecordingFormat,
+  recordingQuality = 'standard', setRecordingQuality,
+  recordingIncludeAudio = true, setRecordingIncludeAudio,
   mediaPaused, mediaPauseReason, mediaBusy, toggleMediaPause, iosStyle, changeIosStyle,
   accessibility = {}, accessibilityBusy = false, toggleAccessibility,
   autoDimOnConnect = false, toggleAutoDimOnConnect,
   screenDimActive = false, screenDimBusy = false, triggerScreenDim,
+  dimShortcutName = 'MirrOS Dim', restoreShortcutName = 'MirrOS Restore', updateDimShortcuts,
   loadingApps, loadDeviceApps, appSwitcher, controlCenterSwipe, notificationsSwipe, setDisplayMode, wakePhone, rotatePhone, rotating,
   button, capture, audioEnabled, audioStatus, volume, setVolume, toggleAudio, phoneAudioButton,
   platformLabel, clipboardBusy, shareClipboard, text, setText, sendText,
@@ -18,6 +26,10 @@ export const InspectorContent = memo(function InspectorContent({
 }) {
   const s = t.inspector;
   const qNames = t.studio.qualityNames;
+  const [dimNameInput, setDimNameInput] = useState(dimShortcutName);
+  const [restoreNameInput, setRestoreNameInput] = useState(restoreShortcutName);
+  useEffect(() => { setDimNameInput(dimShortcutName); }, [dimShortcutName]);
+  useEffect(() => { setRestoreNameInput(restoreShortcutName); }, [restoreShortcutName]);
   return (
     <div className="inspector-content" key={tab}>
       {tab === 'phone' && <>
@@ -88,6 +100,32 @@ export const InspectorContent = memo(function InspectorContent({
           </div>
           <p className="group-description">{s.qualityDesc[videoQuality]} {s.videoGroupNote}</p>
           {videoMode === 'software' && videoQuality === 'detail' && <div className="note" style={{marginTop: 8}}><CircleHelp size={13}/><span>{s.cpuWarning}</span></div>}
+        </section>
+        <section className="settings-group"><h2>{s.recordingGroup || 'Recording'}</h2>
+          <div className="settings-box">
+            <div className="stacked-row"><span>{s.recordingFormat || 'Format'}</span>
+              <div className="segmented" role="group" aria-label={s.recordingFormat || 'Format'}>
+                {[['auto', s.recordingFormatAuto || 'Auto'], ['webm', 'WebM'], ['mp4', 'MP4']].map(([value, label]) => (
+                  <button key={value} type="button" className={recordingFormat === value ? 'selected' : ''} aria-pressed={recordingFormat === value} disabled={recording} onClick={() => setRecordingFormat?.(value)}>{label}</button>
+                ))}
+              </div>
+            </div>
+            <div className="stacked-row"><span>{s.recordingBitrate || 'Quality / Bitrate'}</span>
+              <div className="segmented" role="group" aria-label={s.recordingBitrate || 'Quality / Bitrate'}>
+                {[['standard', s.recordingStandard || 'Standard (4 Mbps)'], ['high', s.recordingHigh || 'High (8 Mbps)']].map(([value, label]) => (
+                  <button key={value} type="button" className={recordingQuality === value ? 'selected' : ''} aria-pressed={recordingQuality === value} disabled={recording} onClick={() => setRecordingQuality?.(value)}>{label}</button>
+                ))}
+              </div>
+            </div>
+            <Toggle
+              label={s.recordingIncludeAudio || 'Include iPhone audio'}
+              detail={s.recordingIncludeAudioDetail || 'Mix live USB audio into saved recordings when PC audio is active'}
+              value={Boolean(recordingIncludeAudio)}
+              disabled={recording}
+              onClick={() => setRecordingIncludeAudio?.(value => !value)}
+            />
+          </div>
+          <p className="group-description">{s.recordingNote || 'Direct hardware or YUV software capture at up to 60 FPS with adaptive audio drift correction.'}</p>
         </section>
         <section className="settings-group"><h2>{s.iosPerfGroup}</h2>
           <div className="settings-box">
@@ -173,6 +211,37 @@ export const InspectorContent = memo(function InspectorContent({
               <div><strong>{s.dimGuideStep2Title}</strong><p>{s.dimGuideStep2Body}</p></div>
               <div><strong>{s.dimGuideStep3Title}</strong><p>{s.dimGuideStep3Body}</p></div>
             </div>
+            <form
+              className="dim-shortcuts-form"
+              onSubmit={event => {
+                event.preventDefault();
+                updateDimShortcuts?.(dimNameInput, restoreNameInput);
+              }}
+            >
+              <label>
+                <span>{s.dimShortcutLabel || 'Dim shortcut name'}</span>
+                <input
+                  type="text"
+                  name="dimShortcutName"
+                  value={dimNameInput}
+                  onChange={event => setDimNameInput(event.target.value)}
+                  placeholder="MirrOS Dim"
+                />
+              </label>
+              <label>
+                <span>{s.restoreShortcutLabel || 'Restore shortcut name'}</span>
+                <input
+                  type="text"
+                  name="restoreShortcutName"
+                  value={restoreNameInput}
+                  onChange={event => setRestoreNameInput(event.target.value)}
+                  placeholder="MirrOS Restore"
+                />
+              </label>
+              <button type="submit" className="small-button">
+                {s.saveShortcutsBtn || 'Save shortcuts'}
+              </button>
+            </form>
           </details>
           <p className="group-description">
             {state.displayMode === 'aod' ? s.aodDesc : s.dualDesc}
@@ -202,9 +271,20 @@ export const InspectorContent = memo(function InspectorContent({
           <div className="settings-box">
             <div className="stacked-row">
               <span>Language / Idioma</span>
-              <div className="segmented" role="group" aria-label={s.languageGroup}>
-                <button className={lang === 'en' ? 'selected' : ''} aria-pressed={lang === 'en'} onClick={() => setLang?.('en')}>English (EN)</button>
-                <button className={lang === 'es' ? 'selected' : ''} aria-pressed={lang === 'es'} onClick={() => setLang?.('es')}>Español (ES)</button>
+              <div className="lang-grid" role="group" aria-label={s.languageGroup}>
+                {LANG_OPTIONS.map(([code, short, label]) => (
+                  <button
+                    key={code}
+                    type="button"
+                    className={lang === code ? 'selected' : ''}
+                    aria-pressed={lang === code}
+                    title={label}
+                    onClick={() => setLang?.(code)}
+                  >
+                    <strong>{short}</strong>
+                    <small>{label}</small>
+                  </button>
+                ))}
               </div>
             </div>
           </div>

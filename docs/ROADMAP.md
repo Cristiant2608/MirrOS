@@ -11,9 +11,9 @@ This roadmap tracks planned engineering improvements, packaging channels, and us
 | Horizon | Target | Focus | Key Deliverables |
 | :--- | :--- | :--- | :--- |
 | **Maintenance & Hygiene** | **`v1.3.x`** | Quality, CI stability, docs | English-first backend alignment, `ruff` + link validation in CI, Windows CI test hardening, `docs/ROADMAP.md`, `docs/notes/` archive, Help → Export Diagnostics button |
-| **Packaging & Multi-Device** | **`v1.4.0`** | Easy install & multi-iPhone | Native `.deb` package in Releases, PyPI package (`pip install mirros`), `winget` / AUR manifests, visual multi-iPhone USB selector, per-device preferences |
-| **Performance & Wireless** | **`v1.5.0`** | Lower CPU & local Wi-Fi | Optional WebGL/YUV renderer for software fallback, guided local Wi-Fi (`tunneld`) pairing option, A/V timestamp sync, community translations (PT/FR/DE/JA) |
-| **Pro Ecosystem** | **`v2.0.0`** | Trust & automation | Code-signed Windows portable binary + SLSA provenance, exploratory macOS desktop support, scriptable CLI/HID QA automation macros |
+| **Packaging & Multi-Device** | **`v1.4.0`** | Easy install & multi-iPhone | Native `.deb` release package, `winget` & AUR manifests, SLSA build attestations, visual multi-iPhone USB selector, per-device preferences, PyPI distribution |
+| **Performance & Wireless** | **`v1.5.0`** | Lower CPU & local Wi-Fi | Direct `I420` YUV / `VideoFrame` software fallback, adaptive A/V drift correction & Pro Recording controls, opt-in local Wi-Fi discovery (`--wifi`/`--enable-wifi`), community locales (`PT`/`FR`/`DE`) |
+| **Pro Ecosystem** | **`v2.0.0`** | Trust & automation | Code-signed Windows portable binary, exploratory macOS desktop support, scriptable CLI/HID QA automation macros |
 
 ---
 
@@ -28,20 +28,21 @@ This roadmap tracks planned engineering improvements, packaging channels, and us
 - [x] Extract frontend locales into `frontend/src/locales/{en,es}.json` and break `App.jsx` into `StudioShell` / `FloatingShell`
 - [x] Wire one-click **Export Diagnostic Report** directly inside the desktop Help tab
 
-### `v1.4.0` — Distribution Channels & Multi-Device Workflow (In Progress)
+### `v1.4.0` — Distribution Channels & Multi-Device Workflow
 - [x] **Visual multi-device picker:** Detect multiple USB-connected iPhones in Desktop Studio and let users switch active devices live without passing `--udid` in CLI.
 - [x] **Per-device persisted presets:** Remember theme, floating size/bounds, physical display mode, auto-dim on connect, and always-on-top state per UDID (stored locally with zero cloud telemetry).
-- [x] **Auto-Dim physical OLED screen (opt-in) & Studio responsiveness:** 0% brightness + Reduce White Point via iOS Shortcuts (`MirrOS Dim` / `MirrOS Restore`) with safe restore on disconnect, side-rail battery telemetry, and zero-lag Studio window pointer updates.
-- [ ] **Native package managers:** Publish Python wheel/sdist to PyPI (`pip install mirros` / `uv tool install mirros`), Debian `.deb` release asset, `winget` manifest, and AUR PKGBUILD.
+- [x] **Auto-Dim physical OLED screen (opt-in) & Studio responsiveness:** 0% brightness + Reduce White Point via customizable iOS Shortcuts (`MirrOS Dim` / `MirrOS Restore` + `Ctrl + Shift + D`) with safe restore on disconnect, side-rail battery telemetry, and zero-lag Studio window pointer updates.
+- [x] **Native packaging manifests & SLSA attestations:** Debian `.deb` release asset, `winget` manifest, AUR `PKGBUILD`, and verifiable SLSA build provenance attestations alongside `SHA256SUMS.txt`.
+- [ ] **PyPI distribution:** Publish Python wheel/sdist to PyPI (`pip install mirros` / `uv tool install mirros`).
 
-### `v1.5.0` — Rendering Efficiency, Audio/Video Sync & Community i18n
-- **Optional YUV / WebGL fallback path:** Evaluate direct YUV frame upload in Chromium to eliminate JPEG encode/decode overhead when software decoding is active.
-- **Audio / Video timestamp alignment:** Coordinate backend frame timestamps and `audio-worklet.js` adaptive buffering to prevent drift in long 60 FPS recordings.
-- **Guided local Wi-Fi mirroring:** Documented, opt-in workflow via `pymobiledevice3` `tunneld` for USB-paired iPhones on trusted local networks.
-- **Additional UI languages:** Community-friendly JSON localization files for Portuguese, French, German, and Japanese.
+### `v1.5.0` — Rendering Efficiency, Audio/Video Sync & Community i18n (Completed)
+- [x] **Direct `I420` YUV / `VideoFrame` software fallback:** Direct `I420` YUV frame upload into WebCodecs `VideoFrame` in Chromium, eliminating JPEG encode/decode overhead when software decoding is active.
+- [x] **Adaptive A/V drift correction & Pro Recording controls:** Coordinated frame timestamps and `audio-worklet.js` adaptive drift correction alongside Pro Recording controls (format, bitrate, and iPhone audio mix toggle) for up to 60 FPS captures.
+- [x] **Opt-in local Wi-Fi discovery (`--wifi` / `--enable-wifi`):** Guided, opt-in workflow via `pymobiledevice3` `tunneld` for USB-paired iPhones on trusted local networks.
+- [x] **Community UI locales (`PT` / `FR` / `DE`):** Full JSON localization parity for Portuguese, French, and German alongside English and Spanish (additional languages such as Japanese welcome via community PRs).
 
 ### `v2.0.0` — Trusted Binaries & Cross-Platform Expansion
-- **Signed Windows executables:** Code signing for `Mirros-*-Windows.exe` alongside existing `SHA256SUMS.txt` digests and verifiable build provenance.
+- **Signed Windows executables:** Authenticode code signing for `Mirros-*-Windows.exe` building on the existing `SHA256SUMS.txt` digests and SLSA provenance attestations.
 - **macOS support exploration:** Native Apple Silicon / Intel packaging parity while keeping Linux and Windows as first-class targets.
 - **Scriptable HID / QA hooks:** Deterministic touch/key playback helpers for iOS app testing and automated demos.
 

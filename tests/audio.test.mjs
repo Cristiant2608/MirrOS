@@ -84,7 +84,7 @@ test('audio client reassembles split packets, deduplicates status and releases i
     audio=startAudio({onStatus:state=>states.push(state)});
     for(let i=0;i<100&&received.length<2;i++) await new Promise(resolve=>setTimeout(resolve,2));
     assert.equal(received.length,2);assert.deepEqual(Array.from(received[0]),[1,2,3,4,5,6,7,8]);
-    assert.equal(states.filter(x=>x==='Sonando en este PC').length,1);
+    assert.equal(states.filter(x=>x==='Playing on this PC').length,1);
     audio.stop();await new Promise(resolve=>setTimeout(resolve,0));
     assert.equal(context.closed,true);assert.equal(cancelled,true);assert.equal(released,true);
   } finally {audio?.stop();Object.assign(globalThis,originals);}

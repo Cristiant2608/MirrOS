@@ -4,7 +4,25 @@ import asyncio
 import contextlib
 import os
 import socket
-from typing import Any, List
+from typing import Any, List, Optional
+
+
+def _select_devices(devices: Any, include_wifi: bool = False) -> list[Any]:
+    """Filter discovered devices by connection type and deduplicate by serial, preferring USB."""
+    allowed = ("USB", "Network") if include_wifi else ("USB",)
+    selected: dict[str, Any] = {}
+    for device in devices:
+        conn = getattr(device, "connection_type", None)
+        if conn not in allowed:
+            continue
+        serial = getattr(device, "serial", None)
+        if not serial:
+            continue
+        if serial not in selected or (
+            conn == "USB" and getattr(selected[serial], "connection_type", None) != "USB"
+        ):
+            selected[serial] = device
+    return list(selected.values())
 
 
 def check_usbmuxd_socket() -> bool:
@@ -27,18 +45,22 @@ def check_usbmuxd_socket() -> bool:
     return False
 
 
-def list_connected_devices() -> List[str]:
-    """No requiere idevice_id; ignora dispositivos descubiertos por Wi-Fi."""
+def list_connected_devices(include_wifi: bool = False) -> List[str]:
+    """No requiere idevice_id; por defecto solo USB (opt-in Wi-Fi local con include_wifi=True)."""
     from pymobiledevice3.usbmux import list_devices
 
     async def discover():
         return await asyncio.wait_for(list_devices(), timeout=3)
 
-    return [device.serial for device in asyncio.run(discover()) if device.connection_type == "USB"]
+    return [device.serial for device in _select_devices(asyncio.run(discover()), include_wifi=include_wifi)]
 
 
-async def inspect_device(udid: str, reveal_developer_mode: bool = True) -> dict[str, Any]:
-    """Inspecciona un iPhone por USB: verifica confianza, versión de iOS y Modo Desarrollador."""
+async def inspect_device(
+    udid: str,
+    reveal_developer_mode: bool = True,
+    connection_type: str = "USB",
+) -> dict[str, Any]:
+    """Inspecciona un iPhone por USB o Wi-Fi local: verifica confianza, versión de iOS y Modo Desarrollador."""
     from packaging.version import Version
     from pymobiledevice3.exceptions import (
         NotPairedError,
@@ -65,13 +87,17 @@ async def inspect_device(udid: str, reveal_developer_mode: bool = True) -> dict[
         "model": "iPhone",
         "product_type": "",
         "version": "",
+        "connection_type": connection_type,
         "paired": True,
         "developer_mode": True,
         "developer_mode_revealed": False,
         "userspace_supported": True,
     }
     try:
-        async with await asyncio.wait_for(create_using_usbmux(serial=udid, autopair=False), timeout=5) as lockdown:
+        create_kwargs: dict[str, Any] = {"serial": udid, "autopair": False}
+        if connection_type != "USB":
+            create_kwargs["connection_type"] = connection_type
+        async with await asyncio.wait_for(create_using_usbmux(**create_kwargs), timeout=5) as lockdown:
             all_values = getattr(lockdown, "all_values", None) or {}
             version_str = getattr(lockdown, "product_version", "") or all_values.get("ProductVersion") or ""
             if version_str and version_str != "1.0":
@@ -142,14 +168,71 @@ async def inspect_device(udid: str, reveal_developer_mode: bool = True) -> dict[
     return info
 
 
-async def inspect_connected_devices(reveal_developer_mode: bool = True) -> List[dict[str, Any]]:
-    """Lista los dispositivos USB conectados con su estado de confianza, túnel y Modo Desarrollador."""
+async def inspect_connected_devices(
+    reveal_developer_mode: bool = True,
+    include_wifi: bool = False,
+) -> List[dict[str, Any]]:
+    """Lista los dispositivos conectados (USB, o USB + Wi-Fi local si include_wifi=True) con su estado."""
     from pymobiledevice3.usbmux import list_devices
 
     devices = await asyncio.wait_for(list_devices(), timeout=4)
     result = []
-    for device in devices:
-        if device.connection_type != "USB":
-            continue
-        result.append(await inspect_device(device.serial, reveal_developer_mode=reveal_developer_mode))
+    for device in _select_devices(devices, include_wifi=include_wifi):
+        conn = getattr(device, "connection_type", "USB") or "USB"
+        if conn == "USB":
+            result.append(await inspect_device(device.serial, reveal_developer_mode=reveal_developer_mode))
+        else:
+            result.append(
+                await inspect_device(
+                    device.serial,
+                    reveal_developer_mode=reveal_developer_mode,
+                    connection_type=conn,
+                )
+            )
     return result
+
+
+async def enable_wifi_connections(udid: str) -> bool:
+    """Enable local Wi-Fi lockdown connections on a USB-connected, trusted iPhone."""
+    from pymobiledevice3.lockdown import create_using_usbmux
+
+    async with await asyncio.wait_for(create_using_usbmux(serial=udid, autopair=False), timeout=5) as lockdown:
+        if not getattr(lockdown, "paired", True):
+            return False
+        await asyncio.wait_for(lockdown.set_enable_wifi_connections(True), timeout=5)
+        return True
+
+
+def enable_wifi_cli(udid: Optional[str] = None) -> int:
+    """Enable local Wi-Fi pairing on a USB-connected iPhone from the CLI."""
+    if not check_usbmuxd_socket():
+        print("[!] USB service (usbmuxd / Apple Mobile Device Service) is unavailable.")
+        return 1
+    try:
+        devices = list_connected_devices()
+    except Exception as error:
+        print(f"[!] Could not detect USB devices: {error}")
+        return 1
+    if udid:
+        if udid not in devices:
+            print(f"[!] USB device not found: {udid}. Connect the iPhone over USB first.")
+            return 1
+        target = udid
+    else:
+        if not devices:
+            print("[!] No USB-connected iPhone found. Connect your iPhone via USB to enable Wi-Fi pairing.")
+            return 1
+        if len(devices) > 1:
+            print("[!] Multiple USB devices found. Use --udid with one of: " + ", ".join(devices))
+            return 1
+        target = devices[0]
+    try:
+        enabled = asyncio.run(enable_wifi_connections(target))
+    except Exception as error:
+        print(f"[!] Could not enable local Wi-Fi pairing on {target}: {error}")
+        return 1
+    if not enabled:
+        print(f"[!] iPhone {target} is not paired yet. Unlock it, tap 'Trust', and try again.")
+        return 1
+    print(f"[+] Local Wi-Fi pairing enabled on {target}. You can now run 'mirros --wifi' on the same local network.")
+    return 0

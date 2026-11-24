@@ -29,9 +29,15 @@ MirrOS opens directly in a **compact floating phone window** with a collapsible 
 
 ![Floating phone pinned side-by-side in a developer workspace](screenshots/desktop-workflow.png)
 
-- **Top titlebar:** drag handle, device status indicator, minimize/maximize/fullscreen (`F11`), `EN / ES` language toggle, and close button.
+- **Top titlebar:** drag handle, device status indicator, minimize/maximize/fullscreen (`F11`), `EN / ES / PT / FR / DE` language switcher, and close button.
 - **Docked control rail:** collapse/expand tab, live battery telemetry indicator (kept cleanly off the mirrored phone screen), swipe left/right, Home (`Ctrl+H`), App Switcher (`Ctrl+M`), Control Center, Notification Center, rotate view (`90°`), fit height, open **Studio Panel**, pin always-on-top, PC audio mute, iPhone mute, screenshot (`Ctrl+P`), screen & audio recording (`Ctrl+Shift+R`), camera/microphone live viewfinder toggle, AOD / Standby mode, Wake (`Ctrl+U`), Lock (`Ctrl+L`), and safe disconnect.
-- **Studio Panel:** expands the full sidebar workspace with **Screen**, **Audio**, **Clipboard**, **Appearance**, and **Help** tabs (plus the live **Multi-iPhone USB switcher**, installed app launcher modal, and one-click private diagnostics export).
+- **Studio Panel:** expands the full sidebar workspace with **Screen**, **Audio**, **Clipboard**, **Appearance** (including all 5 UI languages: `EN`, `ES`, `PT`, `FR`, `DE`), and **Help** tabs (plus the live **Multi-iPhone USB switcher**, **Pro Recording** controls, installed app launcher modal, and one-click private diagnostics export).
+- **Drag & Drop onto the iPhone screen:** drop an image file or selected text directly onto the mirrored iPhone preview to send it straight to the iPhone clipboard (then paste in any iOS app).
+
+## Video Decoding & Pro Recording
+
+- **Direct `I420` YUV software decoding:** Automatic mode uses native hardware HEVC whenever supported by your browser. When compatible software mode is active (or forced with `--force-software`), MirrOS streams direct `I420` YUV frames via WebCodecs `VideoFrame` instead of re-encoding JPEG, reducing CPU usage and preserving crisp detail across **Economy**, **Balanced**, and **Detail** profiles.
+- **Pro Recording (`Screen → Recording`):** Choose your recording **Format** (`Auto`, `WebM`, or `MP4`), **Quality / Bitrate** (**Standard 4 Mbps** or **High 8 Mbps**), and toggle **Include iPhone audio** to mix live USB audio when PC audio is active. Captures run at up to 60 FPS with adaptive audio drift correction (`Ctrl + Shift + R` to start/stop).
 
 ## Multi-iPhone USB Switcher & Per-Device Presets
 
@@ -45,7 +51,7 @@ Apple's USB `CoreDevice` transport does not expose a native API to power off the
 
 ### 1. Create Two iOS Shortcuts on Your iPhone
 
-Open Apple's **Shortcuts** app and create two shortcuts with these exact names:
+Open Apple's **Shortcuts** app and create two shortcuts (default names below — you can also customize both names in Studio):
 
 1. **`MirrOS Dim`**
    - **Set Brightness** → `0%`
@@ -56,7 +62,7 @@ Open Apple's **Shortcuts** app and create two shortcuts with these exact names:
 
 ### 2. Enable Auto-Dim in MirrOS
 
-In Desktop Studio, go to **Screen → Physical Display Mode** and enable **Auto-Dim on Connect** (you can also trigger dim/restore manually). MirrOS runs `MirrOS Dim` once connected and triggers `MirrOS Restore` cleanly during safe disconnect (`/session/end`).
+In Desktop Studio, go to **Screen → Physical Display Mode** and enable **Auto-Dim on Connect**. You can edit and save custom **Dim** and **Restore** shortcut names right in that section, trigger dim/restore manually, or toggle OLED dimming anytime with **`Ctrl + Shift + D`**. MirrOS runs your dim shortcut once connected and triggers restore cleanly during safe disconnect (`/session/end`).
 
 ### 3. Optional Safety Automation for Sudden Cable Unplugs
 
@@ -73,7 +79,7 @@ If the USB cable is unplugged abruptly before MirrOS can send the restore comman
 | **Landscape Floating Mode** | ![Landscape floating phone view](screenshots/telefono-horizontal.png) |
 | **Real-Time USB Audio** | ![MirrOS Audio settings tab](screenshots/audio.png) |
 | **Clipboard Sync** | ![MirrOS Clipboard transfer tab](screenshots/portapapeles.png) |
-| **Appearance, Themes & Language** | ![MirrOS Appearance and EN/ES settings](screenshots/apariencia.png) |
+| **Appearance, Themes & Languages** | ![MirrOS Appearance and language settings](screenshots/apariencia.png) |
 
 ## Keyboard & Mouse Shortcuts
 
@@ -88,8 +94,10 @@ If the USB cable is unplugged abruptly before MirrOS can send the restore comman
 | Lock / Standby | `Ctrl + L` |
 | Save Screenshot (PNG) | `Ctrl + P` |
 | Start / Stop Recording (WebM/MP4) | `Ctrl + Shift + R` |
+| Dim / Restore OLED Screen | `Ctrl + Shift + D` |
 | Fullscreen | `F11` |
 | Select All / Cut / Undo (on iPhone) | `Ctrl + A` / `Ctrl + X` / `Ctrl + Z` |
+| Send Image or Text via Drag & Drop | Drop an image or text onto the iPhone screen |
 | Clipboard Sync | Standard copy & paste over focused phone view (or manual sync buttons in Studio) |
 
 ## Command-Line Interface (`mirros` / `ios-scrcpy`)
@@ -101,14 +109,18 @@ mirros
 # Open directly in full Studio layout
 mirros --studio
 
-# Launch UI in Spanish
+# Launch UI in a specific language (en, es, pt, fr, de)
 mirros --lang es
 
 # Enable PCM audio streaming on startup
 mirros --audio
 
-# Force software decoding fallback (recommended on Linux without HEVC hardware support)
+# Force direct I420 YUV software decoding fallback (recommended on Linux without HEVC hardware support)
 mirros --force-software --video-quality balanced
+
+# Opt-in local Wi-Fi discovery via pymobiledevice3 tunneld (for USB-paired iPhones on a trusted LAN)
+mirros --wifi
+# (alias: mirros --enable-wifi)
 
 # Specify iPhone UDID, port, or browser executable
 mirros --udid <UDID> --port 8080 --browser chromium

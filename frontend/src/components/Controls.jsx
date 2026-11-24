@@ -1,17 +1,21 @@
 import React, {useEffect, useRef} from 'react';
 import {native} from '../bridge.js';
 import {Video, Square} from 'lucide-react';
-import {formatDuration} from '../recorder.mjs';
+import {formatBytes, formatDuration} from '../recorder.mjs';
 import {STRINGS} from '../i18n.js';
 
 export function IconButton({icon: Icon, label, onClick, active, className = '', disabled = false}) {
   return <button className={`icon-button ${active ? 'active' : ''} ${className}`} title={label} aria-label={label} onClick={onClick} disabled={disabled}><Icon size={17}/></button>;
 }
-export function RecordButton({recording, onClick, disabled = false, className = '', t = STRINGS.en}) {
+export function RecordButton({recording, recordingDuration = 0, recordingBytes = 0, onClick, disabled = false, className = '', t = STRINGS.en}) {
+  const progress = recording && recordingBytes > 0
+    ? ` (${formatDuration(recordingDuration)} · ${formatBytes(recordingBytes)})`
+    : '';
+  const label = recording ? `${t.controls.recordStop}${progress}` : t.controls.recordStart;
   return (
     <IconButton
       icon={recording ? Square : Video}
-      label={recording ? t.controls.recordStop : t.controls.recordStart}
+      label={label}
       active={recording}
       className={`record-button ${recording ? 'recording-active' : ''} ${className}`}
       disabled={disabled}
@@ -19,11 +23,12 @@ export function RecordButton({recording, onClick, disabled = false, className = 
     />
   );
 }
-export function RecordingBadge({duration = 0, onStop, className = '', t = STRINGS.en}) {
+export function RecordingBadge({duration = 0, bytes = 0, onStop, className = '', t = STRINGS.en}) {
+  const sizeLabel = bytes > 0 ? ` · ${formatBytes(bytes)}` : '';
   return (
     <div className={`recording-badge ${className}`} title={t.controls.recordBadgeTitle}>
       <span className="recording-pulse" aria-hidden="true" />
-      <span>REC {formatDuration(duration)}</span>
+      <span>REC {formatDuration(duration)}{sizeLabel}</span>
       {onStop && (
         <button
           type="button"

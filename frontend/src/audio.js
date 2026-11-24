@@ -22,20 +22,20 @@ export function startAudio({onStatus, volume = 0.8}) {
       await context.audioWorklet.addModule('/audio-worklet.js');
       if (stopped) return;
       player = new AudioWorkletNode(context, 'mirros-pcm', {numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2]});
-      player.port.onmessage = ({data}) => status(data === 'playing' ? 'Sonando en este PC' : 'Estabilizando audio…');
+      player.port.onmessage = ({data}) => status(data === 'playing' ? 'Playing on this PC' : 'Stabilizing audio…');
       player.connect(gain);
       await context.resume();
       while (!stopped) {
         let reader;
         try {
           const response = await fetch('/audio.bin', {signal: abort.signal});
-          if (!response.ok) throw new Error('No se pudo iniciar el audio del iPhone.');
+          if (!response.ok) throw new Error('Could not start iPhone audio.');
           reader = response.body.getReader();
           const packets = new PacketAssembler(1024 * 1024, size => size % 4 === 0);
-          status('Esperando sonido del iPhone');
+          status('Waiting for iPhone audio');
           while (!stopped) {
             const {done, value} = await reader.read();
-            if (done) throw new Error('La transmisión de audio se interrumpió.');
+            if (done) throw new Error('Audio stream was interrupted.');
             if (stopped) break;
             for (const packet of packets.push(value)) {
               if (packet.length) {
@@ -46,11 +46,11 @@ export function startAudio({onStatus, volume = 0.8}) {
             }
           }
         } catch (error) {
-          if (!stopped) status('Reconectando audio…');
+          if (!stopped) status('Reconnecting audio…');
         } finally { if (reader) { await reader.cancel().catch(() => {}); reader.releaseLock(); } }
         if (!stopped) await wait(750);
       }
-    } catch (error) { status(error.message || 'No se pudo reproducir el audio.'); }
+    } catch (error) { status(error.message || 'Could not play audio.'); }
   }
   run();
   return {
