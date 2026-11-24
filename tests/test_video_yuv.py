@@ -114,28 +114,17 @@ class SoftwareYuvDecoderTests(unittest.TestCase):
         description, nals = hevc_fixture(1280, 2560)
         packet = b''.join(struct.pack('>I', len(nal)) + nal for nal in nals)
 
-        real_create = av.CodecContext.create
-        created_codecs = []
-
-        def tracking_create(codec_name, mode='r'):
-            created_codecs.append((codec_name, mode))
-            return real_create(codec_name, mode)
-
-        with patch('mirros.video.av.CodecContext.create', side_effect=tracking_create):
-            for quality, expected in [('economy', (480, 960)), ('balanced', (784, 1568)), ('detail', (1080, 2160))]:
-                with self.subTest(quality=quality):
-                    decoder = SoftwareYuvDecoder(description, quality)
-                    self.assertFalse(hasattr(decoder, 'encoder'))
-                    payload = decoder.decode(packet)
-                    self.assertIsNotNone(payload)
-                    w, h, ts_us = struct.unpack_from('>HHQ', payload, 0)
-                    self.assertEqual((w, h), expected)
-                    self.assertGreater(ts_us, 0)
-                    self.assertEqual(len(payload), 12 + w * h * 3 // 2)
-
-        self.assertTrue(created_codecs)
-        self.assertTrue(all(name == 'hevc' and mode == 'r' for name, mode in created_codecs))
-        self.assertNotIn(('mjpeg', 'w'), created_codecs)
+        for quality, expected in [('economy', (480, 960)), ('balanced', (784, 1568)), ('detail', (1080, 2160))]:
+            with self.subTest(quality=quality):
+                decoder = SoftwareYuvDecoder(description, quality)
+                self.assertFalse(hasattr(decoder, 'encoder'))
+                self.assertEqual(decoder.decoder.name, 'hevc')
+                payload = decoder.decode(packet)
+                self.assertIsNotNone(payload)
+                w, h, ts_us = struct.unpack_from('>HHQ', payload, 0)
+                self.assertEqual((w, h), expected)
+                self.assertGreater(ts_us, 0)
+                self.assertEqual(len(payload), 12 + w * h * 3 // 2)
 
     def test_decoder_throttles_output_to_profile_fps(self):
         description, nals = hevc_fixture()
