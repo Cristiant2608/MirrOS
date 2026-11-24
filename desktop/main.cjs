@@ -11,6 +11,7 @@ const {saveCapture} = require('./capture.cjs');
 const {saveRecording} = require('./recording.cjs');
 const {createSession} = require('./session.cjs');
 const {deviceRequest} = require('./device-request.cjs');
+const {sanitizeDevicePrefs, sanitizeDevicePrefsMap, loadDevicePrefs, saveDevicePrefs, clearDevicePrefs, normalizeUdid} = require('./device-prefs.cjs');
 const {workerArgs: buildWorkerArgs, resizeBounds, orientedBounds} = require('./runtime.cjs');
 
 const hevcFeatures = process.platform === 'linux'
@@ -30,7 +31,10 @@ else { app.whenReady().then(start).catch(error => { exitCode = 1; dialog.showErr
 let window, proxyServer, guiPort, logStream, timer, session;
 let quitting = false, switching = false;
 let exitCode = 0;
-let preferences = {alwaysOnTop: false, mode: 'studio', size: 'mediano', theme: 'claro', floatingBounds: null, controlsVisible: true, displayMode: 'dual'};
+let globalPreferences = {alwaysOnTop: false, mode: 'studio', size: 'mediano', theme: 'claro', floatingBounds: null, controlsVisible: true, displayMode: 'dual', autoDimOnConnect: false, dimShortcutName: 'MirrOS Dim', restoreShortcutName: 'MirrOS Restore'};
+let preferences = {...globalPreferences};
+let devicePreferences = {};
+let activeDeviceUdid = null;
 let resizing = null, updateAsset = null, updateBusy = false, installUpdate = null;
 const version = app.getVersion();
 async function checkForUpdates() {
@@ -40,18 +44,45 @@ async function checkForUpdates() {
   catch(error) { publish({update:{phase:'error',message:error.message}}); }
   finally { updateBusy = false; }
 }
-let state = {phase: 'buscando', message: 'Connect your iPhone via USB', device: null, version:app.getVersion(), update:{phase:'inactivo',message:'Updates from GitHub'}, ...preferences};
+let state = {phase: 'buscando', message: 'Connect your iPhone via USB', device: null, devices: [], hasDevicePreset: false, version:app.getVersion(), update:{phase:'inactivo',message:'Updates from GitHub'}, ...preferences};
 let aspectRatio = 1264 / 2752;
 const root = path.resolve(__dirname, '..');
-const routes = new Set(['/codec', '/stream.bin', '/frames.bin', '/audio.bin', '/battery', '/info', '/touch', '/key', '/button', '/rotate', '/orientation', '/restart', '/pli', '/clipboard', '/display-mode', '/media-state', '/style', '/accessibility', '/accessibility/set', '/accessibility/reset', '/wake', '/app-switcher', '/apps', '/apps/launch', '/diagnostics', '/camera-frame', '/camera-shutter']);
+const routes = new Set(['/codec', '/stream.bin', '/frames.bin', '/audio.bin', '/battery', '/info', '/touch', '/key', '/button', '/rotate', '/orientation', '/restart', '/pli', '/clipboard', '/display-mode', '/screen-dim', '/media-state', '/style', '/accessibility', '/accessibility/set', '/accessibility/reset', '/wake', '/app-switcher', '/apps', '/apps/launch', '/diagnostics', '/camera-frame', '/camera-shutter']);
 const assets = new Map([['/', ['index.html', 'text/html']], ['/viewer.js', ['viewer.js', 'application/javascript']], ['/viewer.css', ['viewer.css', 'text/css']], ['/audio-worklet.js', ['audio-worklet.js', 'application/javascript']]]);
 
+function applyActiveDevicePrefs(nextUdid) {
+  if (nextUdid === activeDeviceUdid) return;
+  activeDeviceUdid = nextUdid;
+  const previousAlwaysOnTop = preferences.alwaysOnTop;
+  preferences = nextUdid
+    ? loadDevicePrefs(devicePreferences, nextUdid, globalPreferences)
+    : {...globalPreferences};
+  if (window && !window.isDestroyed() && preferences.alwaysOnTop !== previousAlwaysOnTop) {
+    window.setAlwaysOnTop(preferences.alwaysOnTop, 'floating');
+  }
+}
 function publish(patch = {}) {
-  state = {...state, ...patch, ...preferences};
+  const hasDevicePatch = Object.prototype.hasOwnProperty.call(patch, 'device');
+  if (hasDevicePatch) {
+    applyActiveDevicePrefs(normalizeUdid(patch.device?.udid));
+  }
+  const effectiveUdid = hasDevicePatch ? normalizeUdid(patch.device?.udid) : normalizeUdid(state.device?.udid);
+  const hasDevicePreset = Boolean(effectiveUdid && Object.prototype.hasOwnProperty.call(devicePreferences, effectiveUdid));
+  state = {...state, ...patch, ...preferences, hasDevicePreset};
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send('mirros:state', state);
 }
+function writePreferencesFile() {
+  fs.writeFileSync(path.join(app.getPath('userData'), 'preferencias.json'), JSON.stringify({...globalPreferences, devicePreferences}));
+}
 function savePreferences() {
-  fs.writeFileSync(path.join(app.getPath('userData'), 'preferencias.json'), JSON.stringify(preferences));
+  const udid = normalizeUdid(state.device?.udid);
+  if (udid) {
+    globalPreferences.mode = preferences.mode;
+    devicePreferences = saveDevicePrefs(devicePreferences, udid, preferences);
+  } else {
+    globalPreferences = {...preferences};
+  }
+  writePreferencesFile();
 }
 function floatingInsets() { return {insetX: preferences.controlsVisible ? 78 : 42, insetY: 28}; }
 function floatingSize(size = preferences.size) {
@@ -69,7 +100,7 @@ function createWindow() {
   switching = true;
   const win = new BrowserWindow({width, height, minWidth: floating ? 240 : 760, minHeight: floating ? 360 : 540,
     title: 'Mirros', icon: path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png'), frame: false, transparent: floating,
-    backgroundColor: floating ? '#00000000' : '#edf0f5', hasShadow: !floating, resizable: !floating,
+    backgroundColor: floating ? '#00000000' : '#edf0f5', hasShadow: process.platform !== 'linux' && !floating, resizable: !floating,
     alwaysOnTop: preferences.alwaysOnTop, show: false, autoHideMenuBar: true,
     webPreferences: {preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, backgroundThrottling: false}});
   window = win;
@@ -101,9 +132,15 @@ async function start() {
   fs.mkdirSync(app.getPath('userData'), {recursive: true});
   try {
     const saved = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'preferencias.json')));
-    const bounds = saved.floatingBounds;
-    const floatingBounds = bounds && Number.isFinite(bounds.width) && Number.isFinite(bounds.height) && bounds.width >= 240 && bounds.width <= 8192 && bounds.height >= 360 && bounds.height <= 8192 ? {width: Math.round(bounds.width), height: Math.round(bounds.height)} : null;
-    preferences = {alwaysOnTop: saved.alwaysOnTop === true, mode: saved.mode === 'phone' ? 'phone' : 'studio', size: ['pequeño', 'mediano', 'grande'].includes(saved.size) ? saved.size : 'mediano', theme: ['claro', 'oscuro', 'lavanda', 'oceano', 'sistema'].includes(saved.theme) ? saved.theme : 'claro', floatingBounds, controlsVisible: saved.controlsVisible !== false, displayMode: ['dual', 'aod'].includes(saved.displayMode) ? saved.displayMode : 'dual'};
+    const sanitized = sanitizeDevicePrefs(saved);
+    globalPreferences = {
+      ...globalPreferences,
+      ...sanitized,
+      mode: saved.mode === 'phone' ? 'phone' : 'studio',
+    };
+    devicePreferences = sanitizeDevicePrefsMap(saved.devicePreferences);
+    preferences = {...globalPreferences};
+    state = {...state, ...preferences};
   } catch {}
   logStream = fs.createWriteStream(path.join(app.getPath('userData'), 'mirros.log'), {flags: 'a'});
   session = createSession({
@@ -229,6 +266,21 @@ async function start() {
         }
         break;
       }
+      case 'autoDim': {
+        preferences.autoDimOnConnect = Boolean(value);
+        break;
+      }
+      case 'dimShortcuts': {
+        if (value && typeof value === 'object') {
+          if (typeof value.dimShortcutName === 'string' && value.dimShortcutName.trim() && value.dimShortcutName.trim().length <= 80) {
+            preferences.dimShortcutName = value.dimShortcutName.trim();
+          }
+          if (typeof value.restoreShortcutName === 'string' && value.restoreShortcutName.trim() && value.restoreShortcutName.trim().length <= 80) {
+            preferences.restoreShortcutName = value.restoreShortcutName.trim();
+          }
+        }
+        break;
+      }
       case 'wake': {
         await deviceRequest(fetch, session?.port, '/wake');
         if (preferences.displayMode === 'aod') {
@@ -241,6 +293,23 @@ async function start() {
       case 'disconnect': await session.disconnect(); return;
       case 'retry': await session.retry(); return;
       case 'device': await session.select(value); return;
+      case 'resetDevicePreset': {
+        const udid = normalizeUdid(state.device?.udid);
+        if (!udid) return;
+        const previousAlwaysOnTop = preferences.alwaysOnTop;
+        const previousDisplayMode = preferences.displayMode;
+        devicePreferences = clearDevicePrefs(devicePreferences, udid);
+        preferences = loadDevicePrefs(devicePreferences, udid, globalPreferences);
+        if (window && !window.isDestroyed() && preferences.alwaysOnTop !== previousAlwaysOnTop) {
+          window.setAlwaysOnTop(preferences.alwaysOnTop, 'floating');
+        }
+        if (session?.port && preferences.displayMode !== previousDisplayMode) {
+          try { await deviceRequest(fetch, session.port, '/display-mode', {mode: preferences.displayMode}); } catch {}
+        }
+        writePreferencesFile();
+        publish();
+        return;
+      }
       case 'logs': shell.showItemInFolder(path.join(app.getPath('userData'), 'mirros.log')); return;
       case 'diagnostics': {
         const report = await session.diagnostics();

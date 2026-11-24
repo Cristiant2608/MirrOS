@@ -1,17 +1,17 @@
 import {post} from './transport.js';
 import {usePhoneInput} from './hooks/usePhoneInput.js';
 import {bridge, native} from './bridge.js';
-import {IconButton, Toggle, Logo, ResizeHandles, RecordButton, RecordingBadge} from './components/Controls.jsx';
+import {IconButton, RecordButton, RecordingBadge} from './components/Controls.jsx';
 import {createRecorder} from './recorder.mjs';
 import {useAudio} from './hooks/useAudio.js';
 import {useConnection} from './hooks/useConnection.js';
 import {usePhoneVideo} from './hooks/usePhoneVideo.js';
-import {FrameRate} from './components/FrameRate.jsx';
 import {AppsModal} from './components/AppsModal.jsx';
-import {InspectorContent} from './components/InspectorContent.jsx';
+import {FloatingShell} from './components/FloatingShell.jsx';
+import {StudioShell} from './components/StudioShell.jsx';
 import {useLanguage, translateBackendText} from './i18n.js';
 import React, {useEffect, useRef, useState} from 'react';
-import {Smartphone, Pin, Minus, X, Maximize2, Home, LockKeyhole, Volume2, VolumeX, Camera, CameraOff, Play, Mouse, ArrowLeft, ArrowRight, Keyboard, Scan, Palette, Clipboard, ExternalLink, ChevronRight, Cable, CircleHelp, GripHorizontal, Monitor, LoaderCircle, RotateCw, ChevronLeft, LogOut, Moon, Sun, Layers, Battery, BatteryCharging, BatteryLow, BatteryMedium, BatteryFull, SlidersHorizontal, Bell, Languages} from 'lucide-react';
+import {Smartphone, Pin, Minus, X, Maximize2, Home, LockKeyhole, Volume2, VolumeX, Camera, CameraOff, Play, ArrowLeft, ArrowRight, Palette, Clipboard, ExternalLink, ChevronRight, Cable, CircleHelp, GripHorizontal, Monitor, LoaderCircle, RotateCw, ChevronLeft, LogOut, Moon, Sun, Layers, Battery, BatteryCharging, BatteryLow, BatteryMedium, BatteryFull, SlidersHorizontal, Bell, Languages} from 'lucide-react';
 import {resolveBatteryIcon} from './battery.mjs';
 import {rotateDevice} from './orientation.js';
 import './style.css';
@@ -32,7 +32,7 @@ export default function App() {
     color: localStorage.getItem('puntero-color') || '#ffffff',
     size: Number(localStorage.getItem('puntero-tamano') || 100),
   }));
-  const [pointerPosition, setPointerPosition] = useState(null);
+  const pointerNode = useRef(null), canvasRectRef = useRef(null), pointerRaf = useRef(null), pointerPending = useRef(null);
   const [rotating, setRotating] = useState(false);
   const [videoQuality, setVideoQuality] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -166,6 +166,12 @@ export default function App() {
   const [mediaPaused, setMediaPaused] = useState(false), [mediaPauseReason, setMediaPauseReason] = useState(null), [mediaBusy, setMediaBusy] = useState(false), [iosStyle, setIosStyle] = useState(null);
   const [accessibility, setAccessibility] = useState({reduce_motion: false, reduce_transparency: false, increase_contrast: false});
   const [accessibilityBusy, setAccessibilityBusy] = useState(false);
+  const [screenDimActive, setScreenDimActive] = useState(false);
+  const [screenDimBusy, setScreenDimBusy] = useState(false);
+  const [browserAutoDim, setBrowserAutoDim] = useState(() => {
+    try { return localStorage.getItem('mirros_auto_dim') === '1'; } catch { return false; }
+  });
+  const autoDimOnConnect = bridge ? Boolean(state.autoDimOnConnect) : browserAutoDim;
   const [cameraLive, setCameraLive] = useState(false);
   const mediaBusyRef = useRef(false), mediaStateRef = useRef({paused: false, reason: null});
   const floating = state.mode === 'phone', connected = state.phase === 'conectado', controlsVisible = state.controlsVisible !== false;
@@ -307,6 +313,7 @@ export default function App() {
     if (!connected) {
       applyMediaState(false, null);
       setIosStyle(null);
+      setScreenDimActive(false);
       return;
     }
     let cancelled = false;
@@ -325,7 +332,7 @@ export default function App() {
       }).catch(() => {});
     };
     syncMediaState();
-    const interval = setInterval(syncMediaState, 400);
+    const interval = setInterval(syncMediaState, 1000);
     fetch('/style').then(r => r.ok ? r.json() : null).then(data => {
       if (!cancelled && data && (data.style === 'light' || data.style === 'dark')) setIosStyle(data.style);
     }).catch(() => {});
@@ -339,8 +346,55 @@ export default function App() {
       }
       setAccessibility(next);
     }).catch(() => {});
+    fetch('/screen-dim', {cache: 'no-store'}).then(r => r.ok ? r.json() : null).then(data => {
+      if (cancelled || !data || typeof data.active !== 'boolean') return;
+      setScreenDimActive(data.active);
+      if (!bridge && browserAutoDim && !data.active && state.displayMode !== 'aod') {
+        fetch('/screen-dim', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action: 'dim'}),
+        }).then(r => r.ok ? r.json() : null).then(res => {
+          if (!cancelled && res && typeof res.active === 'boolean') setScreenDimActive(res.active);
+        }).catch(() => {});
+      }
+    }).catch(() => {});
     return () => { cancelled = true; clearInterval(interval); };
-  }, [connected, t]);
+  }, [connected, t, bridge, browserAutoDim, state.displayMode]);
+  async function toggleAutoDimOnConnect() {
+    const next = !autoDimOnConnect;
+    if (bridge) {
+      await native('autoDim', next);
+    } else {
+      setBrowserAutoDim(next);
+      try { localStorage.setItem('mirros_auto_dim', next ? '1' : '0'); } catch {}
+    }
+    setNotice(t.notices.autoDimSaved(next));
+  }
+  async function triggerScreenDim(action) {
+    if (!connected || screenDimBusy || (action !== 'dim' && action !== 'restore')) return;
+    setScreenDimBusy(true);
+    try {
+      const res = await fetch('/screen-dim', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          action,
+          force: action === 'restore',
+          dimShortcut: state.dimShortcutName || 'MirrOS Dim',
+          restoreShortcut: state.restoreShortcutName || 'MirrOS Restore',
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body.status === 'error') throw new Error(t.notices.screenDimFailed);
+      setScreenDimActive(Boolean(body.active));
+      setNotice(action === 'dim' ? t.notices.screenDimApplied : t.notices.screenDimRestored);
+    } catch (err) {
+      setNotice(err.message || t.notices.screenDimFailed);
+    } finally {
+      setScreenDimBusy(false);
+    }
+  }
   async function toggleAccessibility(key, nextValue = !accessibility[key]) {
     if (!connected || accessibilityBusy) return;
     setAccessibilityBusy(true);
@@ -505,19 +559,42 @@ export default function App() {
       return next;
     });
   }
+  function hidePointer() {
+    pointerPending.current = null;
+    if (pointerRaf.current != null) {
+      cancelAnimationFrame(pointerRaf.current);
+      pointerRaf.current = null;
+    }
+    const node = pointerNode.current;
+    if (node && node.style.opacity !== '0') node.style.opacity = '0';
+  }
   function trackPointer(event) {
-    const rect = event.currentTarget.getBoundingClientRect();
+    const node = pointerNode.current;
+    if (!node) return;
+    const rect = canvasRectRef.current || (canvasRectRef.current = event.currentTarget.getBoundingClientRect());
     if (event.clientX <= rect.left || event.clientX >= rect.right || event.clientY <= rect.top || event.clientY >= rect.bottom) {
-      setPointerPosition(null);
+      hidePointer();
       return;
     }
-    setPointerPosition({x: event.clientX - rect.left + 5, y: event.clientY - rect.top + 5});
+    pointerPending.current = {x: event.clientX - rect.left + 5, y: event.clientY - rect.top + 5};
+    if (pointerRaf.current == null) {
+      pointerRaf.current = requestAnimationFrame(() => {
+        pointerRaf.current = null;
+        const pos = pointerPending.current;
+        const target = pointerNode.current;
+        if (!pos || !target) return;
+        target.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0)`;
+        if (target.style.opacity !== '1') target.style.opacity = '1';
+      });
+    }
   }
 
   useEffect(() => {
     const node = stage.current;
     if (!node) return;
+    let fitRaf = null;
     const fit = () => {
+      canvasRectRef.current = null;
       const {width, height} = node.getBoundingClientRect();
       const ratio = dimensions.width / dimensions.height;
       const availableHeight = Math.max(100, height - (floating ? 28 : 24));
@@ -526,7 +603,19 @@ export default function App() {
       const nextWidth = Math.round(h * ratio), nextHeight = Math.round(h);
       setPhoneSize(previous => previous.width === nextWidth && previous.height === nextHeight ? previous : {width: nextWidth, height: nextHeight});
     };
-    const observer = new ResizeObserver(fit); observer.observe(node); fit(); return () => observer.disconnect();
+    const scheduleFit = () => {
+      canvasRectRef.current = null;
+      if (fitRaf == null) fitRaf = requestAnimationFrame(() => { fitRaf = null; fit(); });
+    };
+    const observer = new ResizeObserver(scheduleFit);
+    observer.observe(node);
+    window.addEventListener('resize', scheduleFit);
+    fit();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', scheduleFit);
+      if (fitRaf != null) cancelAnimationFrame(fitRaf);
+    };
   }, [dimensions, floating, tab, controlsVisible]);
   async function setDisplayMode(mode) {
     try {
@@ -586,8 +675,8 @@ export default function App() {
   const isDisplaying = live || cameraLive;
   const preview = <div className={`preview-stage ${floating ? 'is-floating' : ''}`} ref={stage}>
     <div className={`phone-shell ${isDisplaying ? 'is-live' : ''}`} style={{width: phoneSize.width + 12, height: phoneSize.height + 12, '--phone-radius': `${Math.round(Math.min(phoneSize.width, phoneSize.height) * .125)}px`}}>
-      <canvas ref={canvas} tabIndex={0} onPointerMove={trackPointer} onPointerLeave={() => setPointerPosition(null)} onPointerCancel={() => setPointerPosition(null)} onLostPointerCapture={() => setPointerPosition(null)} aria-label={t.preview.canvasAria} style={{width: phoneSize.width, height: phoneSize.height}}/>
-      {pointerPosition && <span className={`phone-pointer pointer-${pointer.shape}`} aria-hidden="true" style={{left: pointerPosition.x, top: pointerPosition.y, '--pointer-color': pointer.color, '--pointer-scale': pointer.size / 100}}/>}
+      <canvas ref={canvas} tabIndex={0} onPointerEnter={event => { canvasRectRef.current = event.currentTarget.getBoundingClientRect(); trackPointer(event); }} onPointerMove={trackPointer} onPointerLeave={hidePointer} onPointerCancel={hidePointer} onLostPointerCapture={hidePointer} aria-label={t.preview.canvasAria} style={{width: phoneSize.width, height: phoneSize.height}}/>
+      <span ref={pointerNode} className="phone-pointer-layer" aria-hidden="true" style={{opacity: 0, '--pointer-color': pointer.color, '--pointer-scale': pointer.size / 100}}><span className={`phone-pointer pointer-${pointer.shape}`}/></span>
       {cameraLive && (
         <div className="camera-live-overlay-top">
           <span className="camera-dot" />
@@ -601,15 +690,6 @@ export default function App() {
           <button type="button" className="aod-badge-btn" onClick={wakePhone} title={t.preview.wakeTitle}>
             {t.preview.wakeBtn}
           </button>
-        </div>
-      )}
-      {connected && battery && battery.capacity !== null && floating && (
-        <div
-          className={`floating-battery-badge ${battery.charging ? 'is-charging' : ''} ${battery.capacity <= 20 ? 'is-low' : ''}`}
-          title={t.preview.batteryTitle(battery.capacity, battery.charging)}
-        >
-          {React.createElement(resolveBatteryIcon(BATTERY_ICONS, battery.capacity, battery.charging), {size: 13})}
-          <span>{battery.capacity}%</span>
         </div>
       )}
       {recording && (
@@ -626,6 +706,19 @@ export default function App() {
       <button className="controls-tab" aria-label={controlsVisible ? t.controls.collapse : t.controls.expand} aria-expanded={controlsVisible} title={controlsVisible ? t.controls.collapse : t.controls.expand} onClick={toggleControls}>{controlsVisible ? <ChevronLeft size={13}/> : <ChevronRight size={13}/>}</button>
       <div className="controls-drawer" inert={!controlsVisible} aria-hidden={!controlsVisible}>
         <div className="phone-controls" role="toolbar" aria-label={t.controls.toolbarAria} aria-orientation="vertical">
+          {floating && connected && battery && battery.capacity !== null && (
+            <>
+              <div
+                className={`controls-battery ${battery.charging ? 'is-charging' : ''} ${battery.capacity <= 20 ? 'is-low' : ''}`}
+                title={t.preview.batteryTitle(battery.capacity, battery.charging)}
+                aria-label={t.preview.batteryAria(battery.capacity, battery.charging)}
+              >
+                {React.createElement(resolveBatteryIcon(BATTERY_ICONS, battery.capacity, battery.charging), {size: 13})}
+                <span>{battery.capacity}%</span>
+              </div>
+              <span className="control-separator"/>
+            </>
+          )}
           <IconButton icon={X} label={t.controls.quit} onClick={closeApp}/>
           <IconButton icon={ArrowLeft} label={t.controls.swipeLeft} disabled={!connected} onClick={() => input.current?.swipe('left')}/>
           <IconButton icon={ArrowRight} label={t.controls.swipeRight} disabled={!connected} onClick={() => input.current?.swipe('right')}/>
@@ -658,80 +751,97 @@ export default function App() {
   </div>;
   const statusLabel = connected ? t.status.connected : state.phase === 'preparando' ? t.status.preparing : state.phase === 'pausado' ? t.status.paused : state.phase === 'error' ? t.status.error : t.status.disconnected;
   const currentSection = sections.find(([, id]) => id === tab);
-  const SectionIcon = currentSection[0];
-  if (floating) return <div className="floating-app" data-audio-status={audioStatus}>{preview}{bridge && <ResizeHandles t={t}/>}{notice && <div className="floating-notice" role="status">{notice}</div>}</div>;
-  return <div className="studio">
-    <aside className="sidebar">
-      <div className="sidebar-brand"><Logo/></div>
-      <div className="sidebar-label">{t.studio.deviceHeader}</div>
-      <div className={`sidebar-device ${connected ? 'connected' : ''}`}>
-        <div className="device-avatar"><Smartphone size={20}/></div>
-        <div>
-          <strong>{state.device?.name || 'iPhone'}</strong>
-          {state.device?.model && <small className="device-model-label">{state.device.model}</small>}
-          <small><i/>{statusLabel}{connected && battery && battery.capacity !== null ? ` · ${battery.capacity}%` : ''}</small>
+  if (floating) {
+    return (
+      <FloatingShell
+        audioStatus={audioStatus}
+        preview={preview}
+        bridge={bridge}
+        notice={notice}
+        t={t}
+      />
+    );
+  }
+  const inspectorProps = {
+    tab, state, connected, live, bridge, native, switchMode, disconnectSession,
+    videoMode, videoQuality, setVideoQuality, forceSoftware, setForceSoftware,
+    mediaPaused, mediaPauseReason, mediaBusy, toggleMediaPause, iosStyle, changeIosStyle,
+    accessibility, accessibilityBusy, toggleAccessibility,
+    autoDimOnConnect, toggleAutoDimOnConnect,
+    screenDimActive, screenDimBusy, triggerScreenDim,
+    loadingApps, loadDeviceApps, appSwitcher, controlCenterSwipe, notificationsSwipe, setDisplayMode, wakePhone, rotatePhone, rotating,
+    button, capture, audioEnabled, audioStatus, volume, setVolume, toggleAudio, phoneAudioButton,
+    platformLabel, clipboardBusy, shareClipboard, text, setText, sendText,
+    setTheme, sensitivity, setSensitivity, pointer, updatePointer, exportDiagnostics,
+    lang, setLang, t,
+  };
+  const modals = (
+    <>
+      {state.phase === 'seleccion' && (
+        <div className="modal-backdrop">
+          <section className="device-picker">
+            <h2>{t.studio.selectIphone}</h2>
+            {state.devices.map(device => (
+              <button key={device.udid} onClick={() => native('device', device.udid)}>
+                <Smartphone size={18}/>
+                <span>
+                  <strong>{device.name}</strong>
+                  {(device.model || device.version) && (
+                    <small>{[device.model, device.version ? `iOS ${device.version}` : ''].filter(Boolean).join(' · ')}</small>
+                  )}
+                </span>
+                <ChevronRight size={15}/>
+              </button>
+            ))}
+          </section>
         </div>
-      </div>
-      <div className="sidebar-label">{t.studio.controlsHeader}</div>
-      <nav aria-label={t.studio.sectionsAria}>{sections.map(([Icon, id, label]) => <button key={id} className={tab === id ? 'selected' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon size={17}/><span>{label}</span>{tab === id && <span className="nav-dot"/>}</button>)}</nav>
-      <div className="sidebar-bottom"><button className="floating-launch" onClick={() => switchMode('phone')}><ExternalLink size={16}/><span>{t.studio.phoneOnlyBtn}</span></button><div className="sidebar-app-info"><span>Mirros</span><span>{state.version?.split('.').slice(0,2).join('.') || '—'} · USB</span></div></div>
-    </aside>
-    <div className="workspace">
-      <header className="toolbar">
-        <div className="toolbar-title">
-          <strong>{state.device?.name || 'iPhone'}</strong>
-          {state.device?.model && <span className="device-model-badge">{state.device.model}</span>}
-          <ChevronRight size={14}/>
-          <span>{currentSection[2]}</span>
-        </div>
-        {recording && <RecordingBadge duration={recordingDuration} onStop={toggleRecording} t={t} />}
-        {connected && battery && battery.capacity !== null && (
-          <div
-            className={`battery-pill ${battery.charging ? 'is-charging' : ''} ${battery.capacity <= 20 ? 'is-low' : ''}`}
-            title={t.preview.batteryTitle(battery.capacity, battery.charging)}
-            aria-label={t.preview.batteryAria(battery.capacity, battery.charging)}
-          >
-            {React.createElement(resolveBatteryIcon(BATTERY_ICONS, battery.capacity, battery.charging), {size: 15})}
-            <span>{battery.capacity}%</span>
-          </div>
-        )}
-        <div className="window-actions">
-          <button
-            type="button"
-            className="small-button"
-            style={{padding: '4px 9px', fontSize: 11, fontWeight: 600, marginRight: 4}}
-            title={t.controls.switchLang}
-            onClick={toggleLang}
-          >
-            {lang === 'en' ? '🇺🇸 EN' : '🇪🇸 ES'}
-          </button>
-          <RecordButton recording={recording} disabled={!isDisplaying && !recording} onClick={toggleRecording} t={t}/>
-          <IconButton icon={Maximize2} label={t.controls.fullscreen} onClick={() => { if (bridge) native('fullscreen'); else if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else document.documentElement.requestFullscreen().catch(() => {}); }} />
-          <IconButton icon={Minus} label={t.controls.minimize} onClick={() => native('minimize')}/>
-          <IconButton icon={Maximize2} label={t.controls.maximize} onClick={() => native('maximize')}/>
-          <IconButton icon={X} label={t.controls.quit} className="close-button" onClick={() => native('close')}/>
-        </div>
-      </header>
-      <div className="workspace-content">
-        <section className="viewer" aria-label={t.studio.viewerAria}><div className="viewer-heading"><span className={`connection-pill ${connected ? 'connected' : ''}`}><i/>{connected ? t.status.usbConnected : statusLabel}</span><span className="stream-info">{live ? <>{videoMode && <span className={`engine-badge ${videoMode}`} title={videoMode === 'software' ? t.studio.softwareDecodeTitle : t.studio.hevcDecodeTitle}>{videoMode === 'software' ? t.studio.compatibleBadge(t.studio.qualityNames[videoQuality] || 'Soft') : 'HEVC'}</span>}<FrameRate frames={frames}/> · {dimensions.width} × {dimensions.height}</> : cameraLive ? <><span className="engine-badge detail" title={t.studio.cameraBadgeTitle}>{t.studio.cameraBadge}</span> · {t.studio.dvtLive}</> : t.studio.liveView}</span></div>{preview}<div className="viewer-hints"><span><Mouse size={13}/>{t.studio.hintClickDrag}</span><span><Scan size={13}/>{t.studio.hintScroll}</span><span><Keyboard size={13}/>{keyboard ? t.studio.hintKeyboardActive : t.studio.hintClickToType}</span></div></section>
-        <aside className="inspector" aria-label={currentSection[2]}><div className="inspector-heading"><span className="section-symbol"><SectionIcon size={20}/></span><div><h1>{currentSection[2]}</h1><p>{t.sections[tab][1]}</p></div></div>
-          <InspectorContent
-            tab={tab} state={state} connected={connected} live={live} bridge={bridge} native={native} switchMode={switchMode} disconnectSession={disconnectSession}
-            videoMode={videoMode} videoQuality={videoQuality} setVideoQuality={setVideoQuality} forceSoftware={forceSoftware} setForceSoftware={setForceSoftware}
-            mediaPaused={mediaPaused} mediaPauseReason={mediaPauseReason} mediaBusy={mediaBusy} toggleMediaPause={toggleMediaPause} iosStyle={iosStyle} changeIosStyle={changeIosStyle}
-            accessibility={accessibility} accessibilityBusy={accessibilityBusy} toggleAccessibility={toggleAccessibility}
-            loadingApps={loadingApps} loadDeviceApps={loadDeviceApps} appSwitcher={appSwitcher} controlCenterSwipe={controlCenterSwipe} notificationsSwipe={notificationsSwipe} setDisplayMode={setDisplayMode} wakePhone={wakePhone} rotatePhone={rotatePhone} rotating={rotating}
-            button={button} capture={capture} audioEnabled={audioEnabled} audioStatus={audioStatus} volume={volume} setVolume={setVolume} toggleAudio={toggleAudio} phoneAudioButton={phoneAudioButton}
-            platformLabel={platformLabel} clipboardBusy={clipboardBusy} shareClipboard={shareClipboard} text={text} setText={setText} sendText={sendText}
-            setTheme={setTheme} sensitivity={sensitivity} setSensitivity={setSensitivity} pointer={pointer} updatePointer={updatePointer} exportDiagnostics={exportDiagnostics}
-            lang={lang} setLang={setLang} t={t}
-          />
-        </aside>
-      </div>
-      <footer className="statusbar"><span className={state.phase === 'error' ? 'error-text' : ''}><i className={connected ? 'connected' : ''}/>{connected ? t.status.connectedViaUsb(state.device?.name || 'iPhone') : translateBackendText(state.message, lang)}</span><span>{audioEnabled ? <Volume2 size={12}/> : <VolumeX size={12}/>}{t.status.pcAudio(audioEnabled)}</span></footer>
-    </div>
-    {state.phase === 'seleccion' && <div className="modal-backdrop"><section className="device-picker"><h2>{t.studio.selectIphone}</h2>{state.devices.map(device => <button key={device.udid} onClick={() => native('device', device.udid)}><Smartphone size={18}/>{device.name}<ChevronRight size={15}/></button>)}</section></div>}
-    {showApps && <AppsModal apps={deviceApps} loadingApps={loadingApps} launchingApp={launchingApp} onLaunch={launchDeviceApp} onRefresh={loadDeviceApps} onClose={() => setShowApps(false)} t={t}/>}
-    {notice && <div className="toast" role="status">{notice}</div>}
-  </div>;
+      )}
+      {showApps && (
+        <AppsModal
+          apps={deviceApps}
+          loadingApps={loadingApps}
+          launchingApp={launchingApp}
+          onLaunch={launchDeviceApp}
+          onRefresh={loadDeviceApps}
+          onClose={() => setShowApps(false)}
+          t={t}
+        />
+      )}
+    </>
+  );
+  return (
+    <StudioShell
+      state={state}
+      connected={connected}
+      live={live}
+      cameraLive={cameraLive}
+      isDisplaying={isDisplaying}
+      statusLabel={statusLabel}
+      battery={battery}
+      batteryIcons={BATTERY_ICONS}
+      sections={sections}
+      tab={tab}
+      setTab={setTab}
+      currentSection={currentSection}
+      switchMode={switchMode}
+      recording={recording}
+      recordingDuration={recordingDuration}
+      toggleRecording={toggleRecording}
+      lang={lang}
+      toggleLang={toggleLang}
+      bridge={bridge}
+      native={native}
+      videoMode={videoMode}
+      videoQuality={videoQuality}
+      frames={frames}
+      dimensions={dimensions}
+      keyboard={keyboard}
+      audioEnabled={audioEnabled}
+      preview={preview}
+      inspectorProps={inspectorProps}
+      modals={modals}
+      notice={notice}
+      t={t}
+    />
+  );
 }

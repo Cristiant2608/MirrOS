@@ -9,21 +9,29 @@ export function usePhoneInput({canvas, connected, sensitivity, rotation, floatin
   useEffect(() => {
     if (!canvas.current || !connected) return;
     const node = canvas.current;
+    let cachedRect = null;
+    const getRect = () => cachedRect || (cachedRect = node.getBoundingClientRect());
+    const invalidateRect = () => { cachedRect = null; };
+    const rectObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(invalidateRect) : null;
+    rectObserver?.observe(node);
     const send = (path, data) => post(path, path === '/touch' ? {...data, ...devicePoint(data, rotation)} : data);
-    const controls = createInput(send, error => callbacks.current.onError(error.message), {getSize: () => node.getBoundingClientRect()}); input.current = controls;
-    const point = event => coordinates(event.clientX, event.clientY, node.getBoundingClientRect());
+    const controls = createInput(send, error => callbacks.current.onError(error.message), {getSize: getRect}); input.current = controls;
+    const point = event => coordinates(event.clientX, event.clientY, getRect());
+    let activeDrag = false;
     const down = event => {
       if (event.button !== 0 || !event.isPrimary) return;
       event.preventDefault(); node.focus({preventScroll: true});
-      const raw = point(event), start = edgeStart(raw, node.getBoundingClientRect(), 6);
+      const rect = (cachedRect = node.getBoundingClientRect());
+      const raw = coordinates(event.clientX, event.clientY, rect), start = edgeStart(raw, rect, 6);
       if (controls.down(event.pointerId, start)) {
+        activeDrag = true;
         node.setPointerCapture(event.pointerId);
       }
     };
-    const move = event => controls.move(event.pointerId, point(event.getCoalescedEvents?.().at(-1) || event));
-    const up = event => controls.release(event.pointerId, point(event));
-    const release = () => controls.release(null);
-    const wheel = event => { event.preventDefault(); controls.wheel(point(event), event.deltaY, event.deltaMode, node.clientHeight, sensitivity, event.deltaX, node.clientWidth); };
+    const move = event => { if (!activeDrag) return; controls.move(event.pointerId, point(event.getCoalescedEvents?.().at(-1) || event)); };
+    const up = event => { if (!activeDrag) return; activeDrag = false; controls.release(event.pointerId, point(event)); };
+    const release = () => { if (!activeDrag) return; activeDrag = false; controls.release(null); };
+    const wheel = event => { event.preventDefault(); const rect = getRect(); controls.wheel(coordinates(event.clientX, event.clientY, rect), event.deltaY, event.deltaMode, rect.height, sensitivity, event.deltaX, rect.width); };
     const context = event => { event.preventDefault(); callbacks.current.button('home'); };
     const held = new Set(); let clipboardInFlight = false;
     const sendKeys = () => { const snapshot = [...held]; controls.enqueueAction(() => post('/key', {usages: snapshot})); };
@@ -71,8 +79,8 @@ export function usePhoneInput({canvas, connected, sensitivity, rotation, floatin
     const focus = () => callbacks.current.setKeyboard(true);
     node.addEventListener('pointerdown', down); node.addEventListener('pointermove', move); node.addEventListener('pointerup', up); node.addEventListener('pointercancel', release); node.addEventListener('lostpointercapture', release);
     node.addEventListener('wheel', wheel, {passive: false}); node.addEventListener('contextmenu', context); node.addEventListener('focus', focus); node.addEventListener('blur', blur);
-    window.addEventListener('pointerup', up); window.addEventListener('pointercancel', release); window.addEventListener('blur', blur); document.addEventListener('visibilitychange', visibility); window.addEventListener('keydown', keys); window.addEventListener('keyup', keys);
-    return () => { clearInterval(heartbeat); blur(); controls.dispose(); input.current = null; node.removeEventListener('pointerdown', down); node.removeEventListener('pointermove', move); node.removeEventListener('pointerup', up); node.removeEventListener('pointercancel', release); node.removeEventListener('lostpointercapture', release); node.removeEventListener('wheel', wheel); node.removeEventListener('contextmenu', context); node.removeEventListener('focus', focus); node.removeEventListener('blur', blur); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', release); window.removeEventListener('blur', blur); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('keydown', keys); window.removeEventListener('keyup', keys); };
+    window.addEventListener('pointerup', up); window.addEventListener('pointercancel', release); window.addEventListener('blur', blur); window.addEventListener('resize', invalidateRect); document.addEventListener('visibilitychange', visibility); window.addEventListener('keydown', keys); window.addEventListener('keyup', keys);
+    return () => { rectObserver?.disconnect(); clearInterval(heartbeat); blur(); controls.dispose(); input.current = null; node.removeEventListener('pointerdown', down); node.removeEventListener('pointermove', move); node.removeEventListener('pointerup', up); node.removeEventListener('pointercancel', release); node.removeEventListener('lostpointercapture', release); node.removeEventListener('wheel', wheel); node.removeEventListener('contextmenu', context); node.removeEventListener('focus', focus); node.removeEventListener('blur', blur); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', release); window.removeEventListener('blur', blur); window.removeEventListener('resize', invalidateRect); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('keydown', keys); window.removeEventListener('keyup', keys); };
   }, [connected, sensitivity, rotation]);
   return input;
 }

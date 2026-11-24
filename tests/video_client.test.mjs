@@ -293,3 +293,56 @@ test('stretches top-left encoder resolution collapse to fill the full canvas foo
     globalThis.createImageBitmap = original.createImageBitmap;
   }
 });
+test('caches content crop detection across consecutive frames at the same resolution', async () => {
+  const original = {fetch: globalThis.fetch, VideoDecoder: globalThis.VideoDecoder, createImageBitmap: globalThis.createImageBitmap, document: globalThis.document, requestAnimationFrame: globalThis.requestAnimationFrame, cancelAnimationFrame: globalThis.cancelAnimationFrame};
+  let readbacks = 0, draws = 0;
+  globalThis.VideoDecoder = undefined;
+  globalThis.requestAnimationFrame = cb => setTimeout(cb, 0);
+  globalThis.cancelAnimationFrame = clearTimeout;
+  globalThis.document = {
+    createElement: () => ({
+      width: 0,
+      height: 0,
+      getContext: () => ({
+        drawImage: () => {},
+        getImageData: (_x, _y, w, h) => {
+          readbacks++;
+          return {data: new Uint8ClampedArray(w * h * 4).fill(40)};
+        },
+      }),
+    }),
+  };
+  globalThis.createImageBitmap = async () => ({width: 1264, height: 2752, close: () => {}});
+  let sentCount = 0;
+  globalThis.fetch = async url => String(url).startsWith('/frames.bin') ? {
+    ok: true,
+    body: {
+      getReader: () => ({
+        read: async () => {
+          if (sentCount >= 5) return {done: true};
+          sentCount++;
+          await new Promise(r => setTimeout(r, 8));
+          return {done: false, value: Uint8Array.from([0, 0, 0, 1, 7])};
+        },
+        cancel: async () => {},
+        releaseLock: () => {},
+      }),
+    },
+  } : {ok: false};
+  const canvas = {
+    getContext: () => ({setTransform: () => {}, translate: () => {}, rotate: () => {}, drawImage: () => { draws++; }}),
+    width: 0,
+    height: 0,
+  };
+  let stop;
+  try {
+    stop = startVideo(canvas, {onFrame: () => {}, onStatus: () => {}, onDimensions: () => {}, forceSoftware: true});
+    for (let i = 0; i < 40 && draws < 5; i++) await new Promise(r => setTimeout(r, 10));
+    assert.equal(draws, 5, 'all 5 frames should render');
+    assert.equal(readbacks, 1, 'getImageData should only run once within the cache window for identical frame sizes');
+  } finally {
+    stop?.();
+    Object.assign(globalThis, original);
+    if (original.document === undefined) delete globalThis.document;
+  }
+});

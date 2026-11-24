@@ -1,4 +1,4 @@
-# Usage Guide (`v1.3.0`)
+# Usage Guide (`v1.4.0`)
 
 [Versión en español (USO.md)](USO.md)
 
@@ -21,7 +21,7 @@ MirrOS lets you mirror, record, and control your iPhone over USB from Windows or
 3. Enable **Developer Mode** under `Settings → Privacy & Security → Developer Mode` and restart the phone if requested.
 4. Launch **MirrOS** (desktop app or `mirros` CLI). On first connection, MirrOS automatically mounts the iOS Developer Disk Image (DDI) over USB.
 
-## Desktop & Floating UI (`v1.3.0`)
+## Desktop & Floating UI (`v1.4.0`)
 
 MirrOS opens directly in a **compact floating phone window** with a collapsible side control rail so you can keep your iPhone beside an editor, browser, or terminal:
 
@@ -29,9 +29,42 @@ MirrOS opens directly in a **compact floating phone window** with a collapsible 
 
 ![Floating phone pinned side-by-side in a developer workspace](screenshots/desktop-workflow.png)
 
-- **Top titlebar:** drag handle, device status indicator, battery telemetry badge, minimize/maximize/fullscreen (`F11`), `EN / ES` language toggle, and close button.
-- **Docked control rail:** collapse/expand tab, swipe left/right, Home (`Ctrl+H`), App Switcher (`Ctrl+M`), Control Center, Notification Center, rotate view (`90°`), fit height, open **Studio Panel**, pin always-on-top, PC audio mute, iPhone mute, screenshot (`Ctrl+P`), screen & audio recording (`Ctrl+Shift+R`), camera/microphone live viewfinder toggle, AOD / Standby mode, Wake (`Ctrl+U`), Lock (`Ctrl+L`), and safe disconnect.
-- **Studio Panel:** expands the full sidebar workspace with **Screen**, **Audio**, **Clipboard**, **Appearance**, and **Help** tabs (plus application launcher modal and private diagnostics export).
+- **Top titlebar:** drag handle, device status indicator, minimize/maximize/fullscreen (`F11`), `EN / ES` language toggle, and close button.
+- **Docked control rail:** collapse/expand tab, live battery telemetry indicator (kept cleanly off the mirrored phone screen), swipe left/right, Home (`Ctrl+H`), App Switcher (`Ctrl+M`), Control Center, Notification Center, rotate view (`90°`), fit height, open **Studio Panel**, pin always-on-top, PC audio mute, iPhone mute, screenshot (`Ctrl+P`), screen & audio recording (`Ctrl+Shift+R`), camera/microphone live viewfinder toggle, AOD / Standby mode, Wake (`Ctrl+U`), Lock (`Ctrl+L`), and safe disconnect.
+- **Studio Panel:** expands the full sidebar workspace with **Screen**, **Audio**, **Clipboard**, **Appearance**, and **Help** tabs (plus the live **Multi-iPhone USB switcher**, installed app launcher modal, and one-click private diagnostics export).
+
+## Multi-iPhone USB Switcher & Per-Device Presets
+
+When multiple iPhones are connected over USB, open the **Device** section in Desktop Studio to pick or switch active devices live without restarting or passing `--udid` in the CLI.
+
+MirrOS automatically remembers local per-device (per-UDID) preferences with zero cloud telemetry, including **theme**, **floating window size & bounds**, **physical display mode**, **Auto-Dim on Connect**, and **always-on-top** state.
+
+## Auto-Dim Physical Screen (0% Brightness + Reduce White Point via iOS Shortcuts)
+
+Apple's USB `CoreDevice` transport does not expose a native API to power off the OLED panel completely while keeping touch input and screen capture alive. As an opt-in alternative, MirrOS supports **Auto-Dim Physical Screen**, which dims your iPhone to **0% brightness + Reduce White Point** while keeping the mirrored PC video at **100% brightness**, and automatically restores brightness before closing the USB tunnel on disconnect.
+
+### 1. Create Two iOS Shortcuts on Your iPhone
+
+Open Apple's **Shortcuts** app and create two shortcuts with these exact names:
+
+1. **`MirrOS Dim`**
+   - **Set Brightness** → `0%`
+   - **Set White Point** → `Turn On`
+2. **`MirrOS Restore`**
+   - **Set White Point** → `Turn Off`
+   - **Set Brightness** → your preferred normal level (for example, `50%`)
+
+### 2. Enable Auto-Dim in MirrOS
+
+In Desktop Studio, go to **Screen → Physical Display Mode** and enable **Auto-Dim on Connect** (you can also trigger dim/restore manually). MirrOS runs `MirrOS Dim` once connected and triggers `MirrOS Restore` cleanly during safe disconnect (`/session/end`).
+
+### 3. Optional Safety Automation for Sudden Cable Unplugs
+
+If the USB cable is unplugged abruptly before MirrOS can send the restore command, iOS can restore your screen automatically:
+
+1. Open **Shortcuts → Automation → +** on your iPhone.
+2. Choose **Charger** → **Is Disconnected** → **Run Immediately**.
+3. Select the **`MirrOS Restore`** shortcut.
 
 | Mode / Tab | Preview |
 | :--- | :--- |

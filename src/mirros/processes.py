@@ -89,7 +89,7 @@ def stop_server(process, port, grace=7):
         if port and process.poll() is None:
             request = Request(f"http://127.0.0.1:{port}/session/end", method="POST")
             try:
-                with urlopen(request, timeout=2) as response:
+                with urlopen(request, timeout=5) as response:
                     if response.status == 200:
                         process.wait(timeout=grace)
             except (OSError, subprocess.TimeoutExpired):

@@ -115,3 +115,15 @@ test('F11 keyboard shortcut triggers fullscreen callback and prevents default', 
   assert.equal(prevented, true, 'preventDefault should be called on F11');
   assert.equal(fullscreenToggled, true, 'fullscreen action should be triggered on F11');
 });
+
+test('floating battery indicator lives in .phone-controls bar instead of overlaying the screen', async () => {
+  const appSrc = await fs.readFile(new URL('../frontend/src/App.jsx', import.meta.url), 'utf8');
+  const floatingSrc = await fs.readFile(new URL('../frontend/src/components/FloatingShell.jsx', import.meta.url), 'utf8');
+  const cssSrc = await fs.readFile(new URL('../frontend/src/style.css', import.meta.url), 'utf8');
+  assert.ok(!appSrc.includes('floating-battery-badge'), 'App.jsx must not render the screen-overlay floating-battery-badge');
+  assert.ok(!floatingSrc.includes('floating-battery-badge'), 'FloatingShell.jsx must not render the screen-overlay floating-battery-badge');
+  assert.ok(appSrc.includes('controls-battery') || floatingSrc.includes('controls-battery'), 'Floating controls must render controls-battery inside .phone-controls');
+  assert.ok(cssSrc.includes('.controls-battery'), 'style.css must style .controls-battery');
+  assert.ok(!appSrc.includes('setPointerPosition'), 'App.jsx pointer tracking must update DOM via ref instead of React state');
+  assert.ok(!floatingSrc.includes('setPointerPosition'), 'FloatingShell.jsx must not reintroduce pointer React state');
+});

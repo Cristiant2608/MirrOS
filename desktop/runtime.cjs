@@ -36,7 +36,7 @@ async function stopSession(child, port, {fetchRequest = fetch, forceStop = stopP
   if (!child) return;
   if (port && child.exitCode === null) {
     try {
-      const response = await fetchRequest(`http://127.0.0.1:${port}/session/end`, {method: 'POST', signal: AbortSignal.timeout(1800)});
+      const response = await fetchRequest(`http://127.0.0.1:${port}/session/end`, {method: 'POST', signal: AbortSignal.timeout(5000)});
       if (response.ok && child.exitCode === null) {
         let timeout, onExit;
         await Promise.race([new Promise(resolve => { onExit = resolve; child.once('exit', onExit); }), new Promise(resolve => { timeout = setTimeout(resolve, graceMs); })]);

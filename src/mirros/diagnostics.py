@@ -25,6 +25,8 @@ ALLOWED_ERROR_CODES = frozenset({
     'media_in_use',
     'media_pause_failed',
     'style_failed',
+    'screen_dim_failed',
+    'screen_restore_failed',
 })
 _RECENT_ERRORS = []
 _MAX_RECENT_ERRORS = 20
