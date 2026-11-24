@@ -12,19 +12,23 @@ const RVRA_TIERS = [
   [2532, 1170],
 ];
 let detCanvas = null, detCtx = null;
-export function detectContentCrop(frame, fw, fh) {
+export function detectContentCrop(frame, fw, fh, scratch) {
   if (!fw || !fh || typeof document === 'undefined') return {srcW: fw, srcH: fh};
-  if (!detCanvas) {
-    detCanvas = document.createElement?.('canvas') || null;
-    detCtx = detCanvas?.getContext?.('2d', {willReadFrequently: true}) || null;
+  let canvasNode = scratch ? scratch.canvas : detCanvas;
+  let ctx = scratch ? scratch.ctx : detCtx;
+  if (!canvasNode) {
+    canvasNode = document.createElement?.('canvas') || null;
+    ctx = canvasNode?.getContext?.('2d', {willReadFrequently: true}) || null;
+    if (scratch) { scratch.canvas = canvasNode; scratch.ctx = ctx; }
+    else { detCanvas = canvasNode; detCtx = ctx; }
   }
-  if (!detCtx) return {srcW: fw, srcH: fh};
+  if (!ctx) return {srcW: fw, srcH: fh};
   const DW = Math.max(8, Math.round(DET_H * fw / fh));
-  if (detCanvas.width !== DW) detCanvas.width = DW;
-  if (detCanvas.height !== DET_H) detCanvas.height = DET_H;
+  if (canvasNode.width !== DW) canvasNode.width = DW;
+  if (canvasNode.height !== DET_H) canvasNode.height = DET_H;
   try {
-    detCtx.drawImage(frame.bitmap || frame, 0, 0, DW, DET_H);
-    const d = detCtx.getImageData(0, 0, DW, DET_H)?.data;
+    ctx.drawImage(frame.bitmap || frame, 0, 0, DW, DET_H);
+    const d = ctx.getImageData(0, 0, DW, DET_H)?.data;
     if (!d || d.length < DW * DET_H * 4) return {srcW: fw, srcH: fh};
     // Match both full-range Y=128 (~128) and limited-range BT.601/BT.709 Y=128 (~139 on VAAPI/Mesa).
     const isNeutralPadding = (x, y) => {
@@ -59,14 +63,18 @@ export function detectContentCrop(frame, fw, fh) {
   } catch {}
   return {srcW: fw, srcH: fh};
 }
+const CROP_RECHECK_MS = 750;
 export function startVideo(canvas, {onFrame, onStatus, onDimensions, onRotation = () => {}, onMode = () => {}, quality = 'balanced', forceSoftware = false}) {
   const abort = new AbortController();
   let decoder, pending, lastFrame, raf, renderTimer = null, disposed = false, frames = 0, errors = 0, software = forceSoftware, orientation = 'portrait', rotation = 0, manualAngle = null, lockW = 0, lockH = 0;
+  let cropCache = {fw: 0, fh: 0, srcW: 0, srcH: 0, checkedAt: -Infinity};
+  const cropScratch = {canvas: null, ctx: null};
+  const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const context = canvas.getContext('2d', {alpha: false});
   const draw = frame => {
     const fw = frame.displayWidth, fh = frame.displayHeight;
     const angle = manualAngle ?? frameRotation(orientation, fw, fh);
-    if (rotation !== angle) { onRotation(angle); rotation = angle; }
+    if (rotation !== angle) { onRotation(angle); rotation = angle; cropCache.checkedAt = -Infinity; }
     const sideways = Math.abs(angle) === 90;
     const targetW = sideways ? fh : fw, targetH = sideways ? fw : fh;
     if ((targetW > targetH) !== (lockW > lockH)) { lockW = 0; lockH = 0; }
@@ -76,18 +84,27 @@ export function startVideo(canvas, {onFrame, onStatus, onDimensions, onRotation 
     }
     const width = lockW || targetW, height = lockH || targetH;
     if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; onDimensions({width, height}); }
-    const {srcW, srcH} = detectContentCrop(frame, fw, fh);
-    const fpW = sideways ? height : width, fpH = sideways ? width : height;
-    context.setTransform(1, 0, 0, 1, 0, 0);
-    context.translate(width / 2, height / 2);
-    context.rotate(angle * Math.PI / 180);
-    const source = frame.bitmap || frame;
-    if (srcW !== fw || srcH !== fh || fpW !== fw || fpH !== fh) {
-      context.drawImage(source, 0, 0, srcW, srcH, -fpW / 2, -fpH / 2, fpW, fpH);
-    } else {
-      context.drawImage(source, -fw / 2, -fh / 2, fw, fh);
+    const now = nowMs();
+    if (cropCache.fw !== fw || cropCache.fh !== fh || now - cropCache.checkedAt >= CROP_RECHECK_MS) {
+      const detected = detectContentCrop(frame, fw, fh, cropScratch);
+      cropCache = {fw, fh, srcW: detected.srcW, srcH: detected.srcH, checkedAt: now};
     }
-    context.setTransform(1, 0, 0, 1, 0, 0);
+    const {srcW, srcH} = cropCache;
+    const fpW = sideways ? height : width, fpH = sideways ? width : height;
+    const source = frame.bitmap || frame;
+    if (angle === 0 && srcW === fw && srcH === fh && fpW === fw && fpH === fh) {
+      context.drawImage(source, 0, 0, fw, fh);
+    } else {
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.translate(width / 2, height / 2);
+      context.rotate(angle * Math.PI / 180);
+      if (srcW !== fw || srcH !== fh || fpW !== fw || fpH !== fh) {
+        context.drawImage(source, 0, 0, srcW, srcH, -fpW / 2, -fpH / 2, fpW, fpH);
+      } else {
+        context.drawImage(source, -fw / 2, -fh / 2, fw, fh);
+      }
+      context.setTransform(1, 0, 0, 1, 0, 0);
+    }
   };
   const render = () => {
     if (raf) {
@@ -164,6 +181,7 @@ export function startVideo(canvas, {onFrame, onStatus, onDimensions, onRotation 
               key = true;
               if (type === 2 || decoder.state === 'closed') {
                 try { decoder.close(); } catch {}
+                cropCache.checkedAt = -Infinity;
                 // A restart/rotation can change the SPS; use its new dimensions.
                 try {
                   const latest = await (await fetch('/codec', {signal: abort.signal})).json();
@@ -208,7 +226,7 @@ export function startVideo(canvas, {onFrame, onStatus, onDimensions, onRotation 
   }
   run();
   const stop = () => { if (disposed) return; disposed = true; abort.abort(); if (raf) cancelAnimationFrame(raf); if (renderTimer) clearTimeout(renderTimer); pending?.close(); pending = null; lastFrame?.close(); lastFrame = null; try { decoder?.close(); } catch {} };
-  stop.setOrientation = value => { manualAngle = null; orientation = value; if (lastFrame && !disposed) draw(lastFrame); };
-  stop.rotateView = () => { manualAngle = (rotation + 90) % 360; if (lastFrame && !disposed) draw(lastFrame); };
+  stop.setOrientation = value => { manualAngle = null; orientation = value; cropCache.checkedAt = -Infinity; if (lastFrame && !disposed) draw(lastFrame); };
+  stop.rotateView = () => { manualAngle = (rotation + 90) % 360; cropCache.checkedAt = -Infinity; if (lastFrame && !disposed) draw(lastFrame); };
   return stop;
 }

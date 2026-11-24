@@ -6,8 +6,8 @@
 
 | Platform | Runtime Options | USB Stack Required |
 | :--- | :--- | :--- |
-| **Windows 10 / 11 (x64)** | Portable `.exe` (`MirrOS-1.3.0-Windows.exe`) or Python + Chromium/Edge | Apple Devices (Microsoft Store) or Apple iTunes USB driver (AMDS) |
-| **Linux (x64)** | `.AppImage` / `.deb` (`MirrOS-1.3.0-Linux.*`) or Python + Chromium | `usbmuxd` (`sudo systemctl enable --now usbmuxd`) + `libimobiledevice` |
+| **Windows 10 / 11 (x64)** | Portable `.exe` (`Mirros-1.4.0-Windows.exe`) or Python + Chromium/Edge | Apple Devices (Microsoft Store) or Apple iTunes USB driver (AMDS) |
+| **Linux (x64)** | `.AppImage` / `.deb` (`Mirros-1.4.0-Linux-x64.*`) or Python + Chromium | `usbmuxd` (`sudo systemctl enable --now usbmuxd`) + `libimobiledevice` |
 | **iPhone (USB)** | iOS 17.0+ (iOS 17.4+ uses CoreDevice userspace RSD; iOS 17.0–17.3 falls back automatically to `--tunnel`) | USB data cable + Trust + Developer Mode enabled |
 
 ## Video Decoding Compatibility

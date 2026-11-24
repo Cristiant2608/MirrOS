@@ -92,12 +92,24 @@ function createSession({workerArgs, publish, getState, writeLog, fetchRequest = 
             const codec = await response.json();
             if (codec.codec && codec.description && token === generation && !quitting) {
               let displayWarning = '';
-              if (getState().displayMode === 'aod') {
+              const current = getState();
+              if (current.displayMode === 'aod') {
                 try {
                   await deviceRequest(fetchRequest, backendPort, '/display-mode', {mode:'aod'});
                 } catch {
                   displayWarning = ' Could not enable AOD standby mode.';
                   writeLog('Failed to apply AOD standby mode on connect.\n');
+                }
+              } else if (current.autoDimOnConnect === true) {
+                try {
+                  await deviceRequest(fetchRequest, backendPort, '/screen-dim', {
+                    action: 'dim',
+                    dimShortcut: current.dimShortcutName || 'MirrOS Dim',
+                    restoreShortcut: current.restoreShortcutName || 'MirrOS Restore',
+                  });
+                } catch {
+                  displayWarning = ' Could not run the iPhone dim shortcut.';
+                  writeLog('Failed to apply physical screen dim shortcut on connect.\n');
                 }
               }
               if (token !== generation || quitting) return;
@@ -125,29 +137,37 @@ function createSession({workerArgs, publish, getState, writeLog, fetchRequest = 
     try {
       const result = await workerResult(['status']);
       if (quitting || paused || token !== generation || connecting || ['error', 'pausado', 'cerrando'].includes(getState().phase)) return;
+      const devices = Array.isArray(result.devices) ? result.devices : [];
       if (backend) {
-        const device = result.devices?.find(item => item.udid === getState().device?.udid);
+        const device = devices.find(item => item.udid === getState().device?.udid);
         let healthy = false;
         try {
           const response = await fetchRequest(`http://127.0.0.1:${backendPort}/health`, {signal: AbortSignal.timeout(3000)});
           healthy = response.ok && (await response.json()).healthy === true;
         } catch {}
-        if (quitting || token !== generation) return;
+        if (quitting || paused || token !== generation) return;
         if (!device || result.usb_error || !healthy) {
           const reset = ++generation;
           connecting = true;
-          publish({phase:'buscando', message:'USB session interrupted. Reconnecting…'});
+          publish({phase:'buscando', devices, message:'USB session interrupted. Reconnecting…'});
           try { await stopBackend(); }
           finally { if (reset === generation) connecting = false; }
           if (quitting || reset !== generation) return;
           if (device && !result.usb_error) await connectDevice(device);
-          else publish({phase:'buscando', device:null, message:'Connect your iPhone via USB and unlock it.'});
+          else publish({phase:'buscando', device:null, devices, message:'Connect your iPhone via USB and unlock it.'});
+        } else {
+          publish({devices});
         }
       } else if (result.usb_error) {
-        publish({phase:'buscando', message:process.platform === 'win32' ? 'Check Apple Mobile Device Service via Apple Devices or iTunes.' : 'usbmuxd is not responding. Check the USB service.'});
-      } else if (result.devices.length === 1) await connectDevice(result.devices[0]);
-      else if (result.devices.length > 1) publish({phase: 'seleccion', devices: result.devices, message: 'Select the iPhone you want to use.'});
-      else publish({phase: 'buscando', device: null, message: result.usb_error ? 'Apple USB service is not responding. Open Apple Devices or iTunes and retry.' : 'Connect your iPhone via USB and unlock it.'});
+        publish({phase:'buscando', devices, message:process.platform === 'win32' ? 'Check Apple Mobile Device Service via Apple Devices or iTunes.' : 'usbmuxd is not responding. Check the USB service.'});
+      } else if (devices.length === 1) {
+        publish({devices});
+        await connectDevice(devices[0]);
+      } else if (devices.length > 1) {
+        publish({phase: 'seleccion', devices, message: 'Select the iPhone you want to use.'});
+      } else {
+        publish({phase: 'buscando', device: null, devices, message: result.usb_error ? 'Apple USB service is not responding. Open Apple Devices or iTunes and retry.' : 'Connect your iPhone via USB and unlock it.'});
+      }
     } catch { if (!quitting && token === generation) publish({phase: 'buscando', message: 'Searching for your iPhone via USB…'}); }
     finally { scanning = false; }
   }
@@ -167,9 +187,27 @@ function createSession({workerArgs, publish, getState, writeLog, fetchRequest = 
     await scan();
   }
   async function select(udid) {
-    if (quitting || paused || connecting || getState().phase !== 'seleccion') return;
-    const device = getState().devices?.find(item => item.udid === udid);
-    if (device) await connectDevice(device);
+    if (quitting || connecting || typeof udid !== 'string' || !udid) return;
+    const current = getState();
+    if (!['seleccion', 'conectado', 'pausado', 'error', 'buscando'].includes(current.phase)) return;
+    if (current.phase === 'conectado' && current.device?.udid === udid) return;
+    const device = current.devices?.find(item => item.udid === udid);
+    if (!device) return;
+    paused = false;
+    if (backend || preparing) {
+      const reset = ++generation;
+      connecting = true;
+      publish({phase: 'cerrando', message: 'Switching iPhone…'});
+      try {
+        await stopWorker(preparing);
+        preparing = null;
+        await stopBackend();
+      } finally {
+        if (reset === generation) connecting = false;
+      }
+      if (quitting || reset !== generation) return;
+    }
+    await connectDevice(device);
   }
   async function close() {
     quitting = true; ++generation;

@@ -1,3 +1,10 @@
+# 1.4.0 — 2026-11-24
+
+- **Auto-Dim Physical OLED Screen (0% Brightness + Reduce White Point):** Adds opt-in iOS Shortcuts integration (`MirrOS Dim` / `MirrOS Restore`) triggered on connect and automatically restored before closing the USB tunnel on disconnect (`/screen-dim`, `/session/end`), keeping 100% PC stream brightness with an optional sudden-unplug safety automation.
+- **Window Mode Responsiveness & Floating Battery Rail:** Eliminates Studio window hover lag via `ref` + `requestAnimationFrame` cursor updates, `React.memo` on `InspectorContent`, cached `DOMRect` and throttled `detectContentCrop` (750 ms), CSS `contain` isolation, removal of heavy backdrop/shadow filters, disabled Linux CSD window shadow, and moves the live battery indicator cleanly into the `.phone-controls` side rail.
+- **Backend & Frontend Modularity:** Splits `src/mirros/adapter.py` into focused submodules (`adapter_hid.py`, `adapter_media.py`, `adapter_device.py`, `adapter_http.py`), extracts static UI locales into `frontend/src/locales/{en,es}.json`, and separates `App.jsx` into `StudioShell` and `FloatingShell`.
+- **Visual Multi-iPhone USB Switcher & Per-Device Presets:** Adds a live USB device picker in Desktop Studio to switch between connected iPhones without `--udid`, paired with local per-UDID saved presets (`theme`, `size`, `displayMode`, `autoDimOnConnect`, `alwaysOnTop`, `floatingBounds`).
+
 # 1.3.0 — 2026-11-12
 
 - **Unified Console & Desktop Floating Phone UI:** Running `mirros` from the terminal now serves the full MirrOS React interface directly from `adapter.py` and opens by default in the compact borderless floating phone view (`?mode=phone`, `--floating` / `--studio`).

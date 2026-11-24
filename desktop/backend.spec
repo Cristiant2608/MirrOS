@@ -6,7 +6,13 @@ from PyInstaller.utils.hooks import collect_all, copy_metadata
 
 project = Path(SPECPATH).parent
 datas = [(str(project / 'src/mirros/assets/hevc_dimensions.js'), 'mirros/assets')]
-binaries, hiddenimports = [], []
+binaries, hiddenimports = [], [
+    'mirros.adapter_hid',
+    'mirros.adapter_media',
+    'mirros.adapter_device',
+    'mirros.adapter_http',
+    'mirros.screen_dim',
+]
 if sys.platform == 'win32':
     # Imported by the upstream tunnel module, even when using --userspace.
     wintun = Path(find_spec('pytun_pmd3').origin).parent / 'wintun'

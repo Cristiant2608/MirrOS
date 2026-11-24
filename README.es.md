@@ -4,7 +4,7 @@
   <strong><a href="README.md">🇺🇸 Read in English</a></strong> ·
   <strong>🇪🇸 Español</strong> ·
   <strong><a href="https://cristiant2608.github.io/mirros/">🌐 Sitio Web Oficial</a></strong> ·
-  <strong><a href="https://github.com/Cristiant2608/mirros/releases/latest">⬇️ Descargar última versión (v1.3.0)</a></strong>
+  <strong><a href="https://github.com/Cristiant2608/mirros/releases/latest">⬇️ Descargar última versión (v1.4.0)</a></strong>
 </p>
 
 [![Última versión](https://img.shields.io/github/v/release/Cristiant2608/mirros?label=versi%C3%B3n&color=5269c4)](https://github.com/Cristiant2608/mirros/releases/latest)
@@ -91,7 +91,9 @@ Todas las capturas y vistas animadas del repositorio muestran una pantalla simul
 - **Visor de Cámara en vivo y aislamiento de micrófono:** Al abrir la app Cámara de iOS, MirrOS conmuta automáticamente al visor en directo vía DVT Instruments sin bloqueos por el error CoreDevice 9022.
 - **Grabación de pantalla y audio (`Ctrl+Shift+R`):** Exporta grabaciones WebM/MP4 a 60 FPS y capturas PNG (`Ctrl+P`).
 - **Ajustes de Rendimiento / Accesibilidad de iOS en vivo:** Conmuta *Reducir movimiento*, *Reducir transparencia* y *Aumentar contraste* directamente desde MirrOS para maximizar la nitidez HEVC.
-- **Audio en tiempo real y telemetría de batería:** Reproducción PCM mediante `AudioWorklet` con reserva adaptable, controles de volumen independientes e indicador de batería y modelo del iPhone en vivo.
+- **Audio en tiempo real y telemetría de batería en barra lateral:** Reproducción PCM mediante `AudioWorklet` con reserva adaptable, controles de volumen independientes e indicador de batería y modelo del iPhone en vivo integrado limpiamente en la barra de controles flotante (sin superponerse sobre la pantalla).
+- **Auto-atenuación OLED (0% de brillo + Reducir punto blanco):** Integración opcional con Atajos de iOS (`MirrOS Dim` / `MirrOS Restore`) que atenúa la pantalla física del iPhone al conectar manteniendo el espejo en el PC al 100% de brillo, y restaura automáticamente el brillo al desconectar.
+- **Selector visual multi-iPhone y ajustes por dispositivo:** Cambia en vivo entre varios iPhones conectados por USB desde Desktop Studio sin usar `--udid`, con preferencias locales guardadas por UDID (tema, tamaño/posición flotante, modo de pantalla, auto-atenuación y siempre encima).
 - **Modo AOD / Reposo y vista de Solo Teléfono flotante:** Permite dejar descansar la pantalla física del iPhone mientras sigues interactuando desde el PC, con vista compacta de solo celular tanto en escritorio como al ejecutar `mirros` por consola.
 - **Interfaz bilingüe (`EN` / `ES`):** Inglés por defecto con cambio instantáneo a Español en un clic desde la barra superior, los controles flotantes o la pestaña Apariencia.
 
@@ -103,16 +105,17 @@ Descarga los archivos desde [GitHub Releases](https://github.com/Cristiant2608/m
 
 | Archivo | Uso |
 | --- | --- |
-| `Mirros-1.3.0-Windows.exe` | Portátil Windows x64: descargar y abrir. |
-| `Mirros-1.3.0-Linux-x64.AppImage` | Portátil Linux x64: dar permiso de ejecución (`chmod +x`) y abrir. |
-| `Mirros-1.3.0-Source.zip` | Código fuente de la misma versión. |
+| `Mirros-1.4.0-Windows.exe` | Portátil Windows x64: descargar y abrir. |
+| `Mirros-1.4.0-Linux-x64.AppImage` | Portátil Linux x64: dar permiso de ejecución (`chmod +x`) y abrir. |
+| `Mirros-1.4.0-Linux-x64.deb` | Paquete nativo Debian / Ubuntu x64: `sudo apt install ./Mirros-1.4.0-Linux-x64.deb`. |
+| `Mirros-1.4.0-Source.zip` | Código fuente de la misma versión. |
 | `SHA256SUMS.txt` | Sumas SHA-256 de los archivos publicados. |
 
 En Linux:
 
 ```bash
-chmod +x Mirros-1.3.0-Linux-x64.AppImage
-./Mirros-1.3.0-Linux-x64.AppImage
+chmod +x Mirros-1.4.0-Linux-x64.AppImage
+./Mirros-1.4.0-Linux-x64.AppImage
 ```
 
 ---

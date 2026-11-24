@@ -1,13 +1,15 @@
-import React from 'react';
+import React, {memo} from 'react';
 import {Bell, Camera, Check, ChevronRight, CircleHelp, Clipboard, Download, ExternalLink, Home, Layers, LockKeyhole, LogOut, Moon, Mouse, RefreshCw, RotateCw, Send, SlidersHorizontal, Smartphone, Sun, Volume1, Volume2, VolumeX} from 'lucide-react';
 import {Toggle} from './Controls.jsx';
 import {STRINGS, translateBackendText} from '../i18n.js';
 
-export function InspectorContent({
+export const InspectorContent = memo(function InspectorContent({
   tab, state, connected, live, bridge, native, switchMode, disconnectSession,
   videoMode, videoQuality, setVideoQuality, forceSoftware, setForceSoftware,
   mediaPaused, mediaPauseReason, mediaBusy, toggleMediaPause, iosStyle, changeIosStyle,
   accessibility = {}, accessibilityBusy = false, toggleAccessibility,
+  autoDimOnConnect = false, toggleAutoDimOnConnect,
+  screenDimActive = false, screenDimBusy = false, triggerScreenDim,
   loadingApps, loadDeviceApps, appSwitcher, controlCenterSwipe, notificationsSwipe, setDisplayMode, wakePhone, rotatePhone, rotating,
   button, capture, audioEnabled, audioStatus, volume, setVolume, toggleAudio, phoneAudioButton,
   platformLabel, clipboardBusy, shareClipboard, text, setText, sendText,
@@ -19,7 +21,62 @@ export function InspectorContent({
   return (
     <div className="inspector-content" key={tab}>
       {tab === 'phone' && <>
-        <section className="settings-group"><h2>{s.deviceGroup}</h2><div className="settings-box"><div className="info-row"><span>{s.name}</span><strong>{state.device?.name || 'iPhone'}</strong></div><div className="info-row"><span>{s.connection}</span><strong>{connected ? 'USB' : s.notConnected}</strong></div>{state.device?.version && <div className="info-row"><span>{s.version}</span><strong>iOS {state.device.version}</strong></div>}<button className="row-button" disabled={!connected} onClick={appSwitcher}><Layers size={15}/>{s.openAppSwitcher}<ChevronRight size={14}/></button><button className="row-button" disabled={!connected} onClick={controlCenterSwipe}><SlidersHorizontal size={15}/>{s.openControlCenter}<ChevronRight size={14}/></button><button className="row-button" disabled={!connected} onClick={notificationsSwipe}><Bell size={15}/>{s.openNotifications}<ChevronRight size={14}/></button><button className="row-button" disabled={!connected || loadingApps} onClick={loadDeviceApps}><Smartphone size={15}/>{loadingApps ? s.loadingApps : s.viewInstalledApps}<ChevronRight size={14}/></button><button className="row-button" onClick={() => native('retry')}><RefreshCw size={15}/>{s.reconnect}<ChevronRight size={14}/></button></div></section>
+        <section className="settings-group"><h2>{s.deviceGroup}</h2>
+          <div className="settings-box">
+            <div className="info-row"><span>{s.name}</span><strong>{state.device?.name || 'iPhone'}</strong></div>
+            <div className="info-row"><span>{s.connection}</span><strong>{connected ? 'USB' : s.notConnected}</strong></div>
+            {state.device?.version && <div className="info-row"><span>{s.version}</span><strong>iOS {state.device.version}</strong></div>}
+            {Array.isArray(state.devices) && state.devices.length > 1 && (
+              <div className="device-switcher" role="group" aria-label={s.connectedIphones}>
+                <span className="device-switcher-label">{s.connectedIphones} ({state.devices.length})</span>
+                <div className="device-switcher-list">
+                  {state.devices.map(d => {
+                    const isActive = state.device?.udid === d.udid;
+                    return (
+                      <button
+                        key={d.udid}
+                        type="button"
+                        className={`device-option ${isActive ? 'is-active' : ''}`}
+                        aria-pressed={isActive}
+                        aria-label={s.switchDeviceAria(d.name || 'iPhone')}
+                        onClick={() => { if (!isActive) native('device', d.udid); }}
+                      >
+                        <span className="device-option-icon"><Smartphone size={14}/></span>
+                        <span className="device-option-meta">
+                          <strong>{d.name || 'iPhone'}</strong>
+                          <small>{[d.model, d.version ? `iOS ${d.version}` : ''].filter(Boolean).join(' · ') || 'USB'}</small>
+                        </span>
+                        {isActive
+                          ? <span className="device-active-badge"><Check size={11}/>{s.activeDevice}</span>
+                          : <ChevronRight size={14} className="device-option-chevron"/>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {bridge && connected && state.device?.udid && (
+              <>
+                <div className="info-row">
+                  <span>{s.devicePresetLabel}</span>
+                  <span className={`device-preset-badge ${state.hasDevicePreset ? 'is-custom' : ''}`}>
+                    {state.hasDevicePreset ? s.devicePresetActive : s.devicePresetDefault}
+                  </span>
+                </div>
+                {state.hasDevicePreset && (
+                  <button type="button" className="row-button" onClick={() => native('resetDevicePreset')}>
+                    <RefreshCw size={15}/>{s.resetDevicePreset}<ChevronRight size={14}/>
+                  </button>
+                )}
+              </>
+            )}
+            <button className="row-button" disabled={!connected} onClick={appSwitcher}><Layers size={15}/>{s.openAppSwitcher}<ChevronRight size={14}/></button>
+            <button className="row-button" disabled={!connected} onClick={controlCenterSwipe}><SlidersHorizontal size={15}/>{s.openControlCenter}<ChevronRight size={14}/></button>
+            <button className="row-button" disabled={!connected} onClick={notificationsSwipe}><Bell size={15}/>{s.openNotifications}<ChevronRight size={14}/></button>
+            <button className="row-button" disabled={!connected || loadingApps} onClick={loadDeviceApps}><Smartphone size={15}/>{loadingApps ? s.loadingApps : s.viewInstalledApps}<ChevronRight size={14}/></button>
+            <button className="row-button" onClick={() => native('retry')}><RefreshCw size={15}/>{s.reconnect}<ChevronRight size={14}/></button>
+          </div>
+        </section>
         <section className="settings-group"><h2>{s.videoGroup}</h2>
           <div className="settings-box">
             <Toggle label={s.forceCompatibleVideo} detail={videoMode === 'software' ? s.softwareActive : videoMode === 'native' ? s.nativeActive : s.detectOnConnect} value={forceSoftware} onClick={() => setForceSoftware(value => !value)}/>
@@ -95,7 +152,28 @@ export function InspectorContent({
             <button className="row-button" disabled={!connected} onClick={wakePhone}>
               <Sun size={15}/>{s.wakeDisplay}<ChevronRight size={14}/>
             </button>
+            <Toggle
+              label={s.autoDimOnConnect}
+              detail={s.autoDimOnConnectDetail}
+              value={Boolean(autoDimOnConnect)}
+              onClick={toggleAutoDimOnConnect}
+            />
+            <button className="row-button" disabled={!connected || screenDimBusy} onClick={() => triggerScreenDim?.('dim')}>
+              <Moon size={15}/>{s.dimNow}<ChevronRight size={14}/>
+            </button>
+            <button className="row-button" disabled={!connected || screenDimBusy} onClick={() => triggerScreenDim?.('restore')}>
+              <Sun size={15}/>{s.restoreBrightnessNow}<ChevronRight size={14}/>
+            </button>
           </div>
+          <details className="dim-guide">
+            <summary>{s.dimGuideSummary}</summary>
+            <p>{s.dimGuideIntro}</p>
+            <div className="dim-guide-steps">
+              <div><strong>{s.dimGuideStep1Title}</strong><p>{s.dimGuideStep1Body}</p></div>
+              <div><strong>{s.dimGuideStep2Title}</strong><p>{s.dimGuideStep2Body}</p></div>
+              <div><strong>{s.dimGuideStep3Title}</strong><p>{s.dimGuideStep3Body}</p></div>
+            </div>
+          </details>
           <p className="group-description">
             {state.displayMode === 'aod' ? s.aodDesc : s.dualDesc}
           </p>
@@ -144,4 +222,4 @@ export function InspectorContent({
       </>}
     </div>
   );
-}
+});

@@ -4,7 +4,7 @@
   <strong>🇺🇸 English</strong> ·
   <strong><a href="README.es.md">🇪🇸 Leer en Español</a></strong> ·
   <strong><a href="https://cristiant2608.github.io/mirros/">🌐 Official Website</a></strong> ·
-  <strong><a href="https://github.com/Cristiant2608/mirros/releases/latest">⬇️ Download Latest Release (v1.3.0)</a></strong>
+  <strong><a href="https://github.com/Cristiant2608/mirros/releases/latest">⬇️ Download Latest Release (v1.4.0)</a></strong>
 </p>
 
 [![Latest Release](https://img.shields.io/github/v/release/Cristiant2608/mirros?label=release&color=5269c4)](https://github.com/Cristiant2608/mirros/releases/latest)
@@ -96,7 +96,9 @@ Powered by `pymobiledevice3` and Apple CoreDevice services, MirrOS provides a un
 | **Live Camera Viewfinder & Mic Isolation** | Direct live camera feed on canvas via DVT Instruments (`GET /camera-frame`) with touch controls and automatic microphone isolation (avoiding Apple CoreDevice error 9022). |
 | **Screen & Audio Recording** | Built-in 60 FPS WebM/MP4 screen + audio recorder (`Ctrl+Shift+R` or toolbar button) alongside instant PNG screenshots (`Ctrl+P`). |
 | **Real-Time AAC-ELD Audio** | Streams iPhone audio to your PC using an adaptive `AudioWorklet` jitter buffer (120–240 ms) with independent PC and iPhone volume controls. |
-| **Unified Floating Phone & AOD Standby Mode** | Opens by default in a compact, borderless **Floating Phone** window (`mirros` CLI and Desktop) with 1-click switch to the full **Studio** workspace, plus **AOD / Standby Mode** (`Ctrl+L` / `Ctrl+U`) so the physical iPhone screen rests while PC control stays active. |
+| **Unified Floating Phone, Rail Battery & AOD Standby** | Opens by default in a compact, borderless **Floating Phone** window (`mirros` CLI and Desktop) with live battery telemetry neatly housed in the side control rail (no screen overlay), 1-click switch to the full **Studio** workspace, and **AOD / Standby Mode** (`Ctrl+L` / `Ctrl+U`). |
+| **Auto-Dim OLED (0% Brightness + Reduce White Point)** | Opt-in iOS Shortcuts automation (`MirrOS Dim` / `MirrOS Restore`) that dims the physical OLED screen to 0% brightness + Reduce White Point on connect while keeping the PC stream at 100% brightness, and automatically restores brightness on disconnect. |
+| **Visual Multi-iPhone Switcher & Per-Device Presets** | Live USB device picker in Desktop Studio to switch between multiple connected iPhones without CLI `--udid`, with local per-UDID saved presets (theme, floating size/bounds, display mode, auto-dim, and always-on-top). |
 | **Live iOS Performance & Accessibility Toggles** | Toggle *Reduce Motion*, *Reduce Transparency*, and *Increase Contrast* live on the iPhone via CoreDevice to prevent hardware encoder resolution drops during animations. |
 | **Bilingual Interface (`EN` / `ES`)** | English by default with instant 1-click translation to Spanish in both the Floating Phone bar and Studio toolbar. |
 
@@ -108,16 +110,17 @@ Download the latest self-contained binaries from [GitHub Releases](https://githu
 
 | File | Platform & Usage |
 | --- | --- |
-| `Mirros-1.3.0-Windows.exe` | **Windows 10 / 11 (x64) Portable:** download and run the `.exe`. |
-| `Mirros-1.3.0-Linux-x64.AppImage` | **Linux (x64) Portable:** make executable (`chmod +x`) and run. |
-| `Mirros-1.3.0-Source.zip` | Source code archive from the verified release tag. |
+| `Mirros-1.4.0-Windows.exe` | **Windows 10 / 11 (x64) Portable:** download and run the `.exe`. |
+| `Mirros-1.4.0-Linux-x64.AppImage` | **Linux (x64) Portable:** make executable (`chmod +x`) and run. |
+| `Mirros-1.4.0-Linux-x64.deb` | **Debian / Ubuntu (x64):** install with `sudo apt install ./Mirros-1.4.0-Linux-x64.deb`. |
+| `Mirros-1.4.0-Source.zip` | Source code archive from the verified release tag. |
 | `SHA256SUMS.txt` | SHA-256 checksums for all release artifacts. |
 
 On Linux:
 
 ```bash
-chmod +x Mirros-1.3.0-Linux-x64.AppImage
-./Mirros-1.3.0-Linux-x64.AppImage
+chmod +x Mirros-1.4.0-Linux-x64.AppImage
+./Mirros-1.4.0-Linux-x64.AppImage
 ```
 
 ---
