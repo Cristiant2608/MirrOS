@@ -52,13 +52,23 @@ Desde la pestaña **Dispositivo**, la barra superior o el panel flotante puedes 
 
 Si conectas varios iPhones por USB, el **selector visual multi-iPhone** de la sección **Dispositivo** en Desktop Studio te permite cambiar entre ellos en vivo sin reiniciar ni pasar `--udid` por terminal. Además, MirrOS recuerda de forma local preferencias por cada dispositivo (por UDID), incluyendo **tema**, **tamaño y posición de la ventana flotante**, **modo de pantalla física**, **Auto-atenuar al conectar** y **Siempre encima**.
 
-En la cabecera del visor se muestra una insignia con el motor de video activo (**HEVC Nativo** o **Software MJPEG**). En la pestaña **Pantalla** puedes elegir el perfil de rendimiento del decodificador por software (**Equilibrada**, **Económica** o **Detalle**) o forzar el modo compatible por software.
+En la cabecera del visor se muestra una insignia con el motor de video activo (**HEVC Nativo** o **Software compatible**). En la pestaña **Pantalla** puedes elegir el perfil de rendimiento del decodificador directo **YUV (`I420` / `VideoFrame`) por software** (**Equilibrado**, **Ahorro** o **Detalle**) o forzar el modo compatible sin sobrecarga JPEG.
 
-## Apariencia y puntero configurable
+## Grabación Pro (Pantalla y Audio)
+
+En **Pantalla → Grabación** puedes ajustar las opciones antes de grabar (`Ctrl + Shift + R`):
+
+- **Formato:** `Automático`, `WebM` o `MP4`.
+- **Calidad / Bitrate:** **Estándar (4 Mbps)** o **Alta (8 Mbps)**.
+- **Incluir audio del iPhone:** mezcla el audio USB en directo dentro de las grabaciones guardadas cuando el audio del PC está activo.
+
+La grabación soporta captura directa por hardware o YUV por software hasta a **60 FPS** con corrección adaptativa de desfase de audio.
+
+## Apariencia, idiomas y puntero configurable
 
 ![Temas y sensibilidad](screenshots/apariencia.png)
 
-Elige Claro, Oscuro, Lavanda, Océano o el tema del sistema. La elección se conserva y se aplica a la barra flotante. Ajusta los tamaños predefinidos, la sensibilidad de la rueda y el **puntero del ratón dentro del iPhone** (forma de **Flecha**, **Círculo** o **Punto**, color y tamaño) desde **Apariencia**. La personalización del puntero es puramente visual y mantiene intacta la precisión de las coordenadas táctiles.
+MirrOS incluye **5 idiomas de interfaz** (`EN / ES / PT / FR / DE`), intercambiables al instante desde la barra superior, **Apariencia → Idioma** o con `--lang`. Elige Claro, Oscuro, Lavanda, Océano o el tema del sistema; la elección se conserva y se aplica a la barra flotante. Ajusta los tamaños predefinidos, la sensibilidad de la rueda y el **puntero del ratón dentro del iPhone** (forma de **Flecha**, **Círculo** o **Punto**, color y tamaño) desde **Apariencia**. La personalización del puntero es puramente visual y mantiene intacta la precisión de las coordenadas táctiles.
 
 ## Audio
 
@@ -66,21 +76,15 @@ Elige Claro, Oscuro, Lavanda, Océano o el tema del sistema. La elección se con
 
 «Reproducir audio en el PC» y su volumen afectan al computador. Los botones del iPhone envían sus propias órdenes de volumen y silencio. Para escuchar solo en el iPhone, desactiva el audio del PC. El botón Silencio de iOS puede no silenciar contenido multimedia; no garantiza escuchar únicamente en el PC.
 
-## Portapapeles
+## Portapapeles y Arrastrar y Soltar (Drag & Drop)
 
 ![Transferencias de portapapeles](screenshots/portapapeles.png)
 
 Copia en el PC normalmente, haz clic en un campo del iPhone en MirrOS y pulsa
 Ctrl+V para transferir y pegar. Selecciona texto o una imagen en el iPhone y pulsa
 Ctrl+C con el visor enfocado; después pega en el PC. En otros campos del PC los
-atajos conservan su comportamiento habitual. Las transferencias manuales quedan
+atajos conservan su comportamiento habitual. También puedes **arrastrar y soltar imágenes o texto directamente sobre la pantalla del iPhone** para enviarlos al portapapeles de iOS. Las transferencias manuales quedan
 en el apartado desplegable. El portapapeles solo se consulta al solicitar una copia.
-
-## Apariencia
-
-![Temas y sensibilidad](screenshots/apariencia.png)
-
-Elige Claro, Oscuro, Lavanda, Océano o el tema del sistema. La elección se conserva y se aplica a la barra flotante. Ajusta los tamaños predefinidos y la sensibilidad de la rueda desde Apariencia.
 
 ## Terminar sin dejar el teclado conectado
 
@@ -100,12 +104,34 @@ Una modificación en `main` necesita un paquete publicado para actualizar un EXE
 
 | Acción | Atajo |
 | --- | --- |
-| Inicio | Ctrl+H o clic derecho |
-| Selector de apps (Multitarea) | Ctrl+M o Ctrl+Tab |
-| Bloquear iPhone | Ctrl+L |
-| Guardar captura | Ctrl+P |
-| Volumen del iPhone | Ctrl+[ y Ctrl+] |
-| Siri | Ctrl+S |
+| Inicio | `Ctrl+H` o clic derecho |
+| Selector de apps (Multitarea) | `Ctrl+M` o `Ctrl+Tab` |
+| Despertar iPhone | `Ctrl+U` |
+| Bloquear iPhone | `Ctrl+L` |
+| Guardar captura | `Ctrl+P` |
+| Iniciar / detener grabación (WebM/MP4) | `Ctrl+Shift+R` |
+| Atenuar / restaurar pantalla OLED | `Ctrl+Shift+D` |
+| Seleccionar todo / Cortar / Deshacer (en iOS) | `Ctrl+A` / `Ctrl+X` / `Ctrl+Z` |
+| Enviar imagen o texto por Drag & Drop | Arrastrar y soltar sobre la pantalla del iPhone |
+| Volumen del iPhone | `Ctrl+[` y `Ctrl+]` |
+| Siri | `Ctrl+S` |
+
+## Opciones de línea de comandos (`mirros`)
+
+```bash
+# Abrir en español u otro idioma (en, es, pt, fr, de)
+mirros --lang es
+
+# Abrir directamente el panel Studio con audio USB
+mirros --studio --audio
+
+# Forzar decodificación directa I420 YUV por software
+mirros --force-software --video-quality balanced
+
+# Descubrimiento Wi-Fi local opcional (opt-in) mediante pymobiledevice3 tunneld
+mirros --wifi
+# (alias equivalente: mirros --enable-wifi)
+```
 
 ## Si no aparece imagen
 
@@ -153,7 +179,7 @@ Esta función opcional atenúa el panel OLED físico del iPhone a **0% de brillo
 
 ### 1. Crea dos atajos en tu iPhone
 
-Abre la app **Atajos (Shortcuts)** de Apple en el iPhone y crea dos atajos con estos nombres exactos:
+Abre la app **Atajos (Shortcuts)** de Apple en el iPhone y crea dos atajos (por defecto con estos nombres, que también puedes personalizar desde Studio):
 
 1. **`MirrOS Dim`**
    - **Definir brillo** → `0%`
@@ -164,7 +190,7 @@ Abre la app **Atajos (Shortcuts)** de Apple en el iPhone y crea dos atajos con e
 
 ### 2. Actívalo en MirrOS
 
-En Desktop Studio abre **Pantalla → Modo de pantalla física** y activa **Auto-atenuar al conectar** (también puedes atenuar o restaurar manualmente cuando quieras). Al desconectar de forma segura, MirrOS ejecuta `MirrOS Restore` antes de cerrar la sesión.
+En Desktop Studio abre **Pantalla → Modo de pantalla física** y activa **Auto-atenuar al conectar**. Desde ese mismo apartado puedes editar y guardar nombres personalizados para los atajos de atenuación y restauración, activarlos manualmente o alternar el atenuado OLED en cualquier momento con **`Ctrl + Shift + D`**. Al desconectar de forma segura, MirrOS ejecuta el atajo de restauración antes de cerrar la sesión.
 
 ### 3. Automatización de respaldo opcional ante desconexiones repentinas
 

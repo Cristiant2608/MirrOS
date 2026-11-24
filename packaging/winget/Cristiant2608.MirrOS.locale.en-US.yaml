@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+PackageIdentifier: Cristiant2608.MirrOS
+PackageVersion: 1.4.0
+PackageLocale: en-US
+Publisher: Cristiant2608
+PublisherUrl: https://github.com/Cristiant2608
+PublisherSupportUrl: https://github.com/Cristiant2608/MirrOS/issues
+PackageName: MirrOS
+PackageUrl: https://github.com/Cristiant2608/MirrOS
+License: MIT
+LicenseUrl: https://github.com/Cristiant2608/MirrOS/blob/main/LICENSE
+ShortDescription: Open-source iPhone screen mirroring, audio streaming, screen recording, and USB HID control for Windows and Linux.
+Description: >-
+  MirrOS (scrcpy for iOS) provides low-latency iPhone screen mirroring,
+  system audio streaming, screen recording, clipboard sync, and USB HID
+  mouse and keyboard control for Windows and Linux.
+Moniker: mirros
+Tags:
+  - ios
+  - iphone
+  - mirroring
+  - screen-mirroring
+  - scrcpy
+  - usb
+  - hid
+ReleaseNotesUrl: https://github.com/Cristiant2608/MirrOS/releases/tag/v1.4.0
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

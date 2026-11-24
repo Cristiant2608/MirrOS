@@ -64,9 +64,27 @@ export function detectContentCrop(frame, fw, fh, scratch) {
   return {srcW: fw, srcH: fh};
 }
 const CROP_RECHECK_MS = 750;
+export function decodeYuvFramePacket(packet, VideoFrameCtor = globalThis.VideoFrame) {
+  if (!(packet instanceof Uint8Array) || packet.byteLength < 12 || typeof VideoFrameCtor !== 'function') return null;
+  const view = new DataView(packet.buffer, packet.byteOffset, packet.byteLength);
+  const width = view.getUint16(0, false);
+  const height = view.getUint16(2, false);
+  if (width < 2 || height < 2 || (width & 1) !== 0 || (height & 1) !== 0) return null;
+  const expected = 12 + width * height + (width >> 1) * (height >> 1) * 2;
+  if (packet.byteLength !== expected) return null;
+  const timestampUs = typeof view.getBigUint64 === 'function'
+    ? Number(view.getBigUint64(4, false))
+    : view.getUint32(4, false) * 0x100000000 + view.getUint32(8, false);
+  return new VideoFrameCtor(packet.subarray(12), {
+    format: 'I420',
+    codedWidth: width,
+    codedHeight: height,
+    timestamp: timestampUs,
+  });
+}
 export function startVideo(canvas, {onFrame, onStatus, onDimensions, onRotation = () => {}, onMode = () => {}, quality = 'balanced', forceSoftware = false}) {
   const abort = new AbortController();
-  let decoder, pending, lastFrame, raf, renderTimer = null, disposed = false, frames = 0, errors = 0, software = forceSoftware, orientation = 'portrait', rotation = 0, manualAngle = null, lockW = 0, lockH = 0;
+  let decoder, pending, lastFrame, raf, renderTimer = null, disposed = false, frames = 0, errors = 0, software = forceSoftware, yuvAvailable = true, orientation = 'portrait', rotation = 0, manualAngle = null, lockW = 0, lockH = 0;
   let cropCache = {fw: 0, fh: 0, srcW: 0, srcH: 0, checkedAt: -Infinity};
   const cropScratch = {canvas: null, ctx: null};
   const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -138,15 +156,40 @@ export function startVideo(canvas, {onFrame, onStatus, onDimensions, onRotation 
         if (software) {
           onMode('software');
           onStatus('Conectando video compatible…');
-          const response = await fetch(`/frames.bin?quality=${encodeURIComponent(quality)}`, {signal:abort.signal,cache:'no-store'});
+          let response = null;
+          let usingYuv = false;
+          if (typeof VideoFrame === 'function' && yuvAvailable) {
+            const yuvResponse = await fetch(`/frames.yuv?quality=${encodeURIComponent(quality)}`, {signal: abort.signal, cache: 'no-store'});
+            if (yuvResponse.ok) {
+              response = yuvResponse;
+              usingYuv = true;
+            } else {
+              yuvAvailable = false;
+              yuvResponse.body?.cancel?.().catch?.(() => {});
+            }
+          }
+          if (!response) {
+            response = await fetch(`/frames.bin?quality=${encodeURIComponent(quality)}`, {signal: abort.signal, cache: 'no-store'});
+          }
           if (!response.ok) throw new Error('Esperando video del iPhone…');
           reader = response.body.getReader(); const packets = new PacketAssembler(16 * 1024 * 1024, size => size > 0);
           while (!disposed) {
             const {done,value} = await reader.read();if (done) break;
             if (disposed) break;
             for (const packet of packets.push(value)) {
-              const bitmap = await createImageBitmap(new Blob([packet], {type:'image/jpeg'}));
-              output({bitmap,displayWidth:bitmap.width,displayHeight:bitmap.height,close:()=>bitmap.close()});
+              if (usingYuv) {
+                let frame;
+                try {
+                  frame = decodeYuvFramePacket(packet);
+                } catch {
+                  yuvAvailable = false;
+                  throw new Error('Cambiando a video compatible…');
+                }
+                if (frame) output(frame);
+              } else {
+                const bitmap = await createImageBitmap(new Blob([packet], {type:'image/jpeg'}));
+                output({bitmap,displayWidth:bitmap.width,displayHeight:bitmap.height,close:()=>bitmap.close()});
+              }
             }
           }
           if (disposed) break;

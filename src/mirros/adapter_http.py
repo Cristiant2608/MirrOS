@@ -98,6 +98,7 @@ MIRROS_ROUTES = frozenset({
     (b'GET', b'/orientation'),
     (b'POST', b'/session/end'),
     (b'GET', b'/frames.bin'),
+    (b'GET', b'/frames.yuv'),
     (b'GET', b'/health'),
     (b'GET', b'/clipboard/state'),
     (b'GET', b'/display-mode'),
@@ -133,10 +134,11 @@ async def orientation_connection(server, reader, writer, original):
         line = await reader.readline()
         request = line.split()[:2]
         video_quality = 'balanced'
-        if len(request) == 2 and request[0] == b'GET' and request[1].startswith(b'/frames.bin?'):
-            query = parse_qs(urlsplit(request[1].decode('utf-8', errors='ignore')).query, keep_blank_values=True)
+        if len(request) == 2 and request[0] == b'GET' and request[1].startswith((b'/frames.bin?', b'/frames.yuv?')):
+            parsed = urlsplit(request[1].decode('utf-8', errors='ignore'))
+            query = parse_qs(parsed.query, keep_blank_values=True)
             video_quality = query.get('quality', ['balanced'])[0]
-            request[1] = b'/frames.bin'
+            request[1] = parsed.path.encode('ascii')
         elif len(request) == 2 and request[0] == b'GET' and b'?' in request[1]:
             clean_path = request[1].split(b'?', 1)[0] or b'/'
             if clean_path in WEB_ASSETS:
@@ -201,6 +203,14 @@ async def orientation_connection(server, reader, writer, original):
             writer.close()
             return
         return await software_stream(server, writer, video_quality)
+    elif request == [b'GET', b'/frames.yuv']:
+        from mirros.video import VIDEO_PROFILES, software_yuv_stream
+        if video_quality not in VIDEO_PROFILES:
+            writer.write(b'HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n')
+            await writer.drain()
+            writer.close()
+            return
+        return await software_yuv_stream(server, writer, video_quality)
     elif request == [b'POST', b'/session/end']:
         if getattr(server, '_mirros_dim_active', False):
             from mirros.screen_dim import restore_screen_dim
