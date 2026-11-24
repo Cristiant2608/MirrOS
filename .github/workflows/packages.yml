@@ -158,7 +158,7 @@ jobs:
           (cd release && sha256sum "Mirros-$version-Windows.exe" "Mirros-$version-Linux-x64.AppImage" "Mirros-$version-Linux-x64.deb" "Mirros-$version-Source.zip" > SHA256SUMS.txt)
       - name: Attest build provenance
         if: steps.prepare.outputs.already_published != 'true'
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             release/Mirros-*-Windows.exe
